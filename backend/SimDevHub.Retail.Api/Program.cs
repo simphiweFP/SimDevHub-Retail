@@ -21,6 +21,7 @@ builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
 builder.Services.AddScoped<IReservationExpiry, ReservationExpiryService>();
 builder.Services.AddScoped<IVerifiedPaymentProcessor, VerifiedPaymentProcessor>();
 builder.Services.AddScoped<IPaymentIntentService, PaymentIntentService>();
+builder.Services.AddScoped<IPaymentReconciliationReader, PaymentReconciliationReader>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddRateLimiter(options =>
 {
