@@ -11,5 +11,6 @@ export class DashboardComponent {
     {name:'Byron D. created sale',detail:'Order #NM-5842',time:'09:57'},
     {name:'Admin changed device price',detail:'iPhone 15 price updated',time:'09:41'}
   ];
+  selectNavigation(name:string):void { this.active.set(name); if(name!=='Overview') this.action(name); }
   action(label:string):void {this.notice.set(label+' is a demonstration; server-side verification and approval are not implemented yet.');}
 }
