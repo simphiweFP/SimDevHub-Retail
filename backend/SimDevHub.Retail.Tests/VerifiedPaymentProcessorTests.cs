@@ -48,7 +48,7 @@ public sealed class VerifiedPaymentProcessorTests
             evt with { PaymentIntentId = Guid.NewGuid() }, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.Invalid, await process.ConfirmAsync(
             evt with { Provider = "OtherProvider" }, CancellationToken.None));
-        Assert.Equal(PaymentConfirmationResult.Invalid, await process.ConfirmAsync(
+        Assert.Equal(PaymentConfirmationResult.OrderNotFound, await process.ConfirmAsync(
             evt with { TenantId = Guid.NewGuid() }, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.Paid, await process.ConfirmAsync(evt, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.Duplicate, await process.ConfirmAsync(evt, CancellationToken.None));
