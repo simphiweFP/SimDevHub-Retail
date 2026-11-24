@@ -15,7 +15,7 @@
 
 The issuance operation is **not yet an HTTP endpoint**. A configured identity provider, verified owner-approval workflow, email delivery and rate-limiting are required before invitations can be safely sent to staff.
 
-There is no anonymous invitation redemption endpoint. The acceptance operation currently exists as a server-side service, ready to be wrapped by a protected endpoint after validated interactive authentication and email verification are in place.
+The protected endpoint `POST /api/staff/invitations/accept` is registered only when a trusted identity authority and API audience are configured. It requires a bearer token with validated `iss`, `sub`, `email`, and `email_verified=true` claims. It accepts `{ "token": "..." }` in the JSON request body; invalid or replayed invitations return a generic error. Redemption is rate-limited to five attempts per minute per connecting IP. There is no anonymous acceptance endpoint.
 
 We do not store tokens in logs, send them via query parameters or return them to anonymous callers.
 
@@ -23,6 +23,6 @@ We do not store tokens in logs, send them via query parameters or return them to
 
 - Configure a production identity authority and implement browser sign-in callback handling.
 - Create an owner-authenticated invitation endpoint with a verified notification sender, audit log and resend/revoke policy.
-- Add a protected invitation-acceptance endpoint that constructs VerifiedStaffIdentity only from authenticated verified claims.
+- Add end-to-end tests for the protected invitation-acceptance endpoint with a test OIDC authority, including rejection of unverified emails.
 - Add concurrency and PostgreSQL integration tests for one-use redemption.
 - Add explicit account linking and role/permission policies.

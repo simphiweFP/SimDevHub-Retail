@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using SimDevHub.Retail.Application;
 using SimDevHub.Retail.Infrastructure;
@@ -13,6 +15,22 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<RetailDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IStorefrontCatalogue, StorefrontCatalogueReader>();
 builder.Services.AddScoped<IStaffAccess, StaffAccessReader>();
+builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("invite-redemption", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 builder.Services.AddHealthChecks();
 
 var identityAuthority = builder.Configuration["Identity:Authority"];
@@ -67,6 +85,7 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Retail:
     await DevelopmentSeed.SeedAsync(database);
 }
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHealthChecks("/health");
@@ -95,7 +114,33 @@ if (identityReady)
         var membership = await access.ResolveAsync(issuer, subject, storeSlug, ct);
         return membership is null ? Results.Forbid() : Results.Ok(membership);
     }).RequireAuthorization();
+
+    app.MapPost("/api/staff/invitations/accept", async (
+        AcceptInvitationRequest request, ClaimsPrincipal principal,
+        IStaffInvitations invitations, CancellationToken ct) =>
+    {
+        // No client-supplied role, tenant, issuer, subject or email is trusted.
+        // Both verified email and JWT identity must come from the validated authority.
+        var issuer = principal.FindFirst("iss")?.Value;
+        var subject = principal.FindFirst("sub")?.Value;
+        var email = principal.FindFirst("email")?.Value;
+        var emailVerified = principal.FindFirst("email_verified")?.Value;
+        if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject) ||
+            string.IsNullOrWhiteSpace(email) ||
+            !string.Equals(emailVerified, "true", StringComparison.OrdinalIgnoreCase))
+            return Results.Forbid();
+
+        var result = await invitations.AcceptAsync(
+            request.Token ?? "", new VerifiedStaffIdentity(issuer, subject, email), ct);
+        return result == InvitationAcceptStatus.Accepted
+            ? Results.Ok(new { message = "Invitation accepted." })
+            : Results.BadRequest(new { error = "Invitation unavailable or already used." });
+    })
+    .RequireAuthorization()
+    .RequireRateLimiting("invite-redemption")
+    .DisableAntiforgery(); // Bearer-token API; do not add cookie auth without CSRF protection.
 }
 
 app.Run();
+public sealed record AcceptInvitationRequest(string? Token);
 public partial class Program;
