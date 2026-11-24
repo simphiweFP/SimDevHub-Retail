@@ -34,21 +34,33 @@ public sealed class PayfastSandboxItnVerifier(
             submitted.Length != 32 || !submitted.All(Uri.IsHexDigit))
             return null;
 
-        var configuration = await merchant.GetCredentialsAsync(ct);
-        if (configuration is null || configuration.MerchantId.Length == 0 ||
-            string.IsNullOrEmpty(configuration.Passphrase))
-            return null;
-
-        if (!values.TryGetValue("merchant_id", out var merchantId) ||
-            merchantId != configuration.MerchantId ||
-            !values.TryGetValue("payment_status", out var status) || status != "COMPLETE" ||
-            !values.TryGetValue("m_payment_id", out var paymentId) ||
+        if (!values.TryGetValue("m_payment_id", out var paymentId) ||
             !Guid.TryParseExact(paymentId, "N", out var intentId) ||
+            !values.TryGetValue("merchant_id", out var merchantId) ||
+            !values.TryGetValue("payment_status", out var status) || status != "COMPLETE" ||
             !values.TryGetValue("pf_payment_id", out var providerId) ||
             providerId.Length is < 1 or > 160 ||
             !values.TryGetValue("amount_gross", out var gross) ||
             !decimal.TryParse(gross, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount) ||
             amount <= 0 || amount != decimal.Round(amount, 2))
+            return null;
+
+        // The untrusted intent reference only selects a candidate tenant. It
+        // does not prove authority. Every credential and amount check below is
+        // against that persisted tenant/intent rather than a global merchant.
+        var intent = await db.PaymentIntents.AsNoTracking()
+            .Where(x => x.Id == intentId && x.Provider == Provider &&
+                        x.Status == "AwaitingVerification" && x.Currency == "ZAR" &&
+                        x.Order.TenantId == x.TenantId && x.Order.Tenant.IsActive)
+            .Select(x => new { x.Id, x.TenantId, x.OrderId, x.Amount })
+            .SingleOrDefaultAsync(ct);
+        if (intent is null || intent.Amount != amount)
+            return null;
+
+        var configuration = await merchant.GetCredentialsAsync(intent.TenantId, ct);
+        if (configuration is null ||
+            !string.Equals(merchantId, configuration.MerchantId, StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(configuration.Passphrase))
             return null;
 
         // Build signature in original POST field order. The provider's signature
@@ -69,14 +81,6 @@ public sealed class PayfastSandboxItnVerifier(
         // separate contracts to prevent signature-only acceptance.
         if (!await sourceValidator.IsTrustedSourceAsync(notification, ct) ||
             !await serverConfirmation.ValidateAsync(notification.Body, ct))
-            return null;
-
-        var intent = await db.PaymentIntents.AsNoTracking()
-            .Where(x => x.Id == intentId && x.Provider == Provider &&
-                        x.Status == "AwaitingVerification" && x.Currency == "ZAR")
-            .Select(x => new { x.Id, x.TenantId, x.OrderId, x.Amount })
-            .SingleOrDefaultAsync(ct);
-        if (intent is null || intent.Amount != amount)
             return null;
 
         return new VerifiedPaymentEvent(
@@ -104,7 +108,7 @@ public sealed record PayfastMerchantSettings(string MerchantId, string Passphras
 
 public interface IPayfastSandboxMerchant
 {
-    Task<PayfastMerchantSettings?> GetCredentialsAsync(CancellationToken ct);
+    Task<PayfastMerchantSettings?> GetCredentialsAsync(Guid tenantId, CancellationToken ct);
 }
 
 /// <summary>

@@ -55,7 +55,8 @@ public sealed class PayfastSandboxItnVerifierTests
 
         var source = new MutableSource { Allowed = true };
         var server = new MutableConfirmation { Allowed = true };
-        var verifier = new PayfastSandboxItnVerifier(db, source, server, new FakeMerchant());
+        var merchant = new FakeMerchant(tenant);
+        var verifier = new PayfastSandboxItnVerifier(db, source, server, merchant);
         var body = SignedForm(intentId.ToString("N"), "6499.00", "10000100");
         var notification = new GatewayNotification("PayfastSandbox", body, new Dictionary<string, string>());
 
@@ -66,6 +67,17 @@ public sealed class PayfastSandboxItnVerifierTests
         Assert.Equal(intentId, accepted.PaymentIntentId);
         Assert.Equal("PayfastSandbox", accepted.Provider);
         Assert.Equal(6499m, accepted.Amount);
+        Assert.Equal(tenant, merchant.LastTenantId);
+
+        // No tenant merchant configuration is allowed to fall back to a global
+        // credential. Both absence and incorrect merchant ownership must fail.
+        merchant.Credentials = null;
+        Assert.Null(await verifier.VerifyAsync(notification, CancellationToken.None));
+        merchant.Credentials = new("20000200", "test-only-passphrase");
+        Assert.Null(await verifier.VerifyAsync(notification, CancellationToken.None));
+        merchant.Credentials = new("10000100", "wrong-tenant-passphrase");
+        Assert.Null(await verifier.VerifyAsync(notification, CancellationToken.None));
+        merchant.Credentials = new("10000100", "test-only-passphrase");
 
         source.Allowed = false;
         Assert.Null(await verifier.VerifyAsync(notification, CancellationToken.None));
@@ -116,10 +128,17 @@ public sealed class PayfastSandboxItnVerifierTests
         return Encoding.UTF8.GetBytes(canonical + "&signature=" + signature);
     }
 
-    private sealed class FakeMerchant : IPayfastSandboxMerchant
+    private sealed class FakeMerchant(Guid expectedTenant) : IPayfastSandboxMerchant
     {
-        public Task<PayfastMerchantSettings?> GetCredentialsAsync(CancellationToken ct) =>
-            Task.FromResult<PayfastMerchantSettings?>(new("10000100", "test-only-passphrase"));
+        public Guid? LastTenantId { get; private set; }
+        public PayfastMerchantSettings? Credentials { get; set; } =
+            new("10000100", "test-only-passphrase");
+
+        public Task<PayfastMerchantSettings?> GetCredentialsAsync(Guid tenantId, CancellationToken ct)
+        {
+            LastTenantId = tenantId;
+            return Task.FromResult(tenantId == expectedTenant ? Credentials : null);
+        }
     }
 
     private sealed class MutableSource : IPayfastSourceValidator
