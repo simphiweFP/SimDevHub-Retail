@@ -66,11 +66,8 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         invitation.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
 
         var device = modelBuilder.Entity<SerialisedDevice>();
-        // PostgreSQL supports regex checks; SQLite test schemas use service validation.
         if (Database.IsNpgsql())
-            device.ToTable("serialised_devices", t => t.HasCheckConstraint("ck_device_imei_15_digits", "\"Imei\" ~ '^[0-9]{15}$'"));
-        else
-            device.ToTable("serialised_devices");
+        device.ToTable("serialised_devices", t => t.HasCheckConstraint("ck_device_imei_15_digits", "\"Imei\" ~ '^[0-9]{15}
         device.HasKey(x => x.Id);
         device.Property(x => x.Imei).HasMaxLength(15).IsRequired();
         device.Property(x => x.Status).HasMaxLength(24).IsRequired();
