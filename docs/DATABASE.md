@@ -1,27 +1,23 @@
-# Database foundation — first real persistence increment
+# Sim DevHub Retail — PostgreSQL development setup
 
-This increment replaces the hardcoded **backend catalogue** with a PostgreSQL-ready, tenant-filtered public storefront query. The Angular storefront still uses local demo catalogue items; wiring it to this API is a following step.
+The initial EF Core migration is committed under `backend/SimDevHub.Retail.Infrastructure/Migrations/`.
+The **public** storefront API filters products by active tenant and publish state. It does not serve private inventory or staff records.
 
-## Development startup
+## Run locally
 
-1. Run `docker compose -f ops/docker/compose.yml up -d` from the repository root.
-2. Install .NET 10 SDK and EF Core CLI (`dotnet tool install --global dotnet-ef --version 10.0.0`).
-3. Generate the initial migration (only once): `dotnet ef migrations add InitialRetailCatalogue --project backend/SimDevHub.Retail.Infrastructure --startup-project backend/SimDevHub.Retail.Api --output-dir Migrations`.
-4. Review the generated migration and commit it before production deployment.
-5. Apply the migration locally: `dotnet ef database update --project backend/SimDevHub.Retail.Infrastructure --startup-project backend/SimDevHub.Retail.Api`.
-6. Run `dotnet run --project backend/SimDevHub.Retail.Api`.
+1. Install .NET 10, Node 22, and Docker.
+2. From the repository root: `docker compose -f ops/docker/compose.yml up -d`.
+3. Start the backend: `dotnet run --project backend/SimDevHub.Retail.Api`.
+   Development settings opt in to applying the first migration and seeding fictional `nova-mobile` products.
+4. In another terminal: `cd frontend && npm install && npm start`.
+5. Open `http://localhost:4200`; Angular forwards `/api` calls to `http://localhost:5082` through its dev proxy.
+6. API example: `curl http://localhost:5082/api/storefront/nova-mobile/products`.
 
-## Public API
+## Important boundaries
 
-`GET /api/storefront/{storeSlug}/products` returns a public store name, slug, and **published** products for an **active** tenant, or 404. It never returns IMEIs or private stock information. This is NOT an authenticated staff API and does not establish private tenant authorisation.
-
-## Next required security and functionality steps
-
-- Store product management APIs must be authenticated and derive tenant identity from server-issued staff membership, not client-supplied IDs.
-- Add production migrations (the initial migration has not been generated in this increment).
-- Configure secrets via environment / secret manager. The development credentials in docker compose must never be reused outside local development.
-- Add staff identity tables, verified Google/Facebook OAuth and staff invitation policies.
-- Integrate the Angular storefront against the catalogue endpoint and add production data seeding/onboarding.
-- Add PostgreSQL integration tests beyond the SQLite isolated query test.
-
-No customer payment or production authentication is enabled.
+- The API-backed catalogue is real PostgreSQL read logic; all demo products are fictional. A clearly labelled fallback catalogue appears if the API is unavailable.
+- Do not use sample credentials in production. Set `ConnectionStrings__RetailDb` using secure environment config or secret manager.
+- Development-only `Retail:SeedDemo=true` enables automatic migration/seed; production deployment must apply reviewed migrations separately.
+- Cart, payment, checkout, staff screens, OAuth, supplier purchase orders, delivery integrations and tenant-scoped administration are still prototypes.
+- The screenshot-aligned hero is presentation-only and must be made dynamic for each tenant later.
+- Store-specific host/subdomain routing, staff membership-based tenant authorisation and PostgreSQL integration tests are upcoming work.

@@ -24,7 +24,8 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "buildTarget": "retail:build"
+            "buildTarget": "retail:build",
+            "proxyConfig": "proxy.conf.json"
           }
         }
       }

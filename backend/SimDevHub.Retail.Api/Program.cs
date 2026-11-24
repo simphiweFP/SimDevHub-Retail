@@ -3,8 +3,9 @@ using SimDevHub.Retail.Application;
 using SimDevHub.Retail.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("RetailDb")
-    ?? throw new InvalidOperationException("ConnectionStrings:RetailDb must be configured. Do not commit credentials.");
+var connectionString = builder.Configuration.GetConnectionString("RetailDb");
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException("Configure ConnectionStrings:RetailDb using environment variables or a secret manager.");
 
 builder.Services.AddDbContext<RetailDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IStorefrontCatalogue, StorefrontCatalogueReader>();
@@ -12,10 +13,16 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+// Only developer environments can opt into automatic schema updates and fictional seed data.
+// Production must apply reviewed migrations independently.
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Retail:SeedDemo"))
+{
+    using var scope = app.Services.CreateScope();
+    var database = scope.ServiceProvider.GetRequiredService<RetailDbContext>();
+    await database.Database.MigrateAsync();
+    await DevelopmentSeed.SeedAsync(database);
+}
 app.MapHealthChecks("/health");
-
-// Public storefront endpoint: returns only published products for one active tenant.
-// Do not use this route to return staff, pricing costs, inventory IMEIs or private business records.
 app.MapGet("/api/storefront/{storeSlug}/products", async (
     string storeSlug, IStorefrontCatalogue catalogue, CancellationToken cancellationToken) =>
 {
@@ -25,9 +32,7 @@ app.MapGet("/api/storefront/{storeSlug}/products", async (
 
     var store = await catalogue.GetPublishedAsync(storeSlug, cancellationToken);
     return store is null ? Results.NotFound() : Results.Ok(store);
-})
-.WithName("GetStorefrontProducts");
+}).WithName("GetStorefrontProducts");
 
 app.Run();
-
 public partial class Program;
