@@ -34,7 +34,7 @@ public sealed class OrderReservationTests
         Assert.Equal(7999m, first.Total);
         Assert.NotNull(first.OrderId);
         Assert.Equal(ReserveOrderStatus.OutOfStock, second.Status);
-        Assert.Equal("Reserved", (await db.SerialisedDevices.SingleAsync(x => x.Id == deviceId)).Status);
+        Assert.Equal("Reserved", (await db.SerialisedDevices.AsNoTracking().SingleAsync(x => x.Id == deviceId)).Status);
         Assert.Single(await db.RetailOrders.Where(x => x.TenantId == tenantId).ToListAsync());
         Assert.Single(await db.InventoryMovements.Where(x => x.DeviceId == deviceId && x.MovementType == "Reserved").ToListAsync());
 
