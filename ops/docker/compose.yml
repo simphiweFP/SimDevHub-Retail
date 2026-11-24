@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: simdevhub_retail
+      POSTGRES_USER: retail_dev
+      POSTGRES_PASSWORD: local-development-only
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - retail-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retail_dev -d simdevhub_retail"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  retail-postgres:
