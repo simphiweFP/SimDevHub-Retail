@@ -67,25 +67,7 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
 
         var device = modelBuilder.Entity<SerialisedDevice>();
         if (Database.IsNpgsql())
-        device.ToTable("serialised_devices", t => t.HasCheckConstraint("ck_device_imei_15_digits", "\"Imei\" ~ '^[0-9]{15}
-        device.HasKey(x => x.Id);
-        device.Property(x => x.Imei).HasMaxLength(15).IsRequired();
-        device.Property(x => x.Status).HasMaxLength(24).IsRequired();
-        device.HasIndex(x => new { x.TenantId, x.Imei }).IsUnique();
-        device.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
-        device.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
-
-        var movement = modelBuilder.Entity<InventoryMovement>();
-        movement.ToTable("inventory_movements");
-        movement.HasKey(x => x.Id);
-        movement.Property(x => x.MovementType).HasMaxLength(30).IsRequired();
-        movement.Property(x => x.Reference).HasMaxLength(100).IsRequired();
-        movement.HasIndex(x => new { x.DeviceId, x.OccurredAt });
-        movement.HasIndex(x => x.TenantId);
-        movement.HasOne(x => x.Device).WithMany(x => x.Movements).HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
-    }
-}
-"));
+            device.ToTable("serialised_devices", t => t.HasCheckConstraint("ck_device_imei_15_digits", "\"Imei\" ~ '^[0-9]{15}$'"));
         else
             device.ToTable("serialised_devices");
         device.HasKey(x => x.Id);
