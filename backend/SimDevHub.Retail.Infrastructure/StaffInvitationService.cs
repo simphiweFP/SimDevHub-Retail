@@ -93,10 +93,10 @@ public sealed class StaffInvitationService(RetailDbContext db, TimeProvider cloc
             await db.Memberships.AnyAsync(x => x.TenantId == invite.TenantId && x.UserId == user.Id, ct);
         if (alreadyMember) return InvitationAcceptStatus.AlreadyMember;
 
-        // A conditional DB update makes invitation redemption one-time across
+        // Expiry was validated above within the database transaction. The\n        // conditional update below claims the token once without provider-specific\n        // DateTimeOffset range comparisons (which SQLite cannot translate).\n        // A conditional DB update makes invitation redemption one-time across
         // separate application instances. Membership changes share its transaction.
         var claimed = await db.StaffInvitations.Where(x =>
-                x.Id == invite.Id && x.AcceptedAt == null && x.ExpiresAt > clock.GetUtcNow())
+                x.Id == invite.Id && x.AcceptedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.AcceptedAt, clock.GetUtcNow()), ct);
         if (claimed != 1) return InvitationAcceptStatus.Invalid;
 
