@@ -1,11 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, NgFor } from '@angular/common';
 import { CatalogueService } from '../../core/services/catalogue.service';
 import { Product } from '../../core/models/product';
 
 @Component({
-  selector:'sdh-storefront', standalone:true, imports:[RouterLink,CurrencyPipe],
+  selector:'sdh-storefront', standalone:true, imports:[RouterLink,CurrencyPipe,NgFor],
   templateUrl:'./storefront.component.html', styleUrl:'./storefront.component.scss'
 })
 export class StorefrontComponent {
