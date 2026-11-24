@@ -155,5 +155,22 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.HasIndex(x => x.OrderId);
             e.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<PaymentIntent>(e =>
+        {
+            e.ToTable("payment_intents");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.TenantId);
+            e.Property(x => x.OrderId);
+            e.Property(x => x.IdempotencyKey).IsRequired().HasMaxLength(100);
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(60);
+            e.Property(x => x.Status).IsRequired().HasMaxLength(30);
+            e.Property(x => x.Amount).HasPrecision(14, 2);
+            e.Property(x => x.Currency).IsRequired().HasMaxLength(3);
+            e.Property(x => x.CreatedAt);
+            e.HasIndex(x => new { x.TenantId, x.OrderId, x.IdempotencyKey }).IsUnique();
+            e.HasIndex(x => x.OrderId);
+            e.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }

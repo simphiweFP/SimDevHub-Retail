@@ -15,6 +15,7 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<RetailOrder> RetailOrders => Set<RetailOrder>();
     public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
+    public DbSet<PaymentIntent> PaymentIntents => Set<PaymentIntent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,5 +108,15 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         payment.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
         payment.HasIndex(x => new { x.TenantId, x.OrderId });
         payment.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        var intent = modelBuilder.Entity<PaymentIntent>();
+        intent.ToTable("payment_intents");
+        intent.HasKey(x => x.Id);
+        intent.Property(x => x.IdempotencyKey).HasMaxLength(100).IsRequired();
+        intent.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        intent.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        intent.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+        intent.Property(x => x.Amount).HasPrecision(14, 2);
+        intent.HasIndex(x => new { x.TenantId, x.OrderId, x.IdempotencyKey }).IsUnique();
+        intent.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
     }
 }
