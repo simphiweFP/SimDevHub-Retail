@@ -1,10 +1,22 @@
 <div class="store-shell">
-<header class="store-header"><a class="brand" routerLink="/"><span class="brand-icon">N</span> Nova Mobile</a><nav><a href="#products">Shop</a><a href="#products">Deals</a><a href="#products">Accessories</a><a routerLink="/admin">Business portal</a></nav><a routerLink="/login" class="sign-in">Sign in</a><span class="cart">🛍 {{cart().length}}</span></header>
-<main>
-<section class="hero"><div class="hero-copy"><span class="eyebrow">Latest Release</span><h1>iPhone 16 Pro</h1><p>Pro. In every way.</p><h3>From R26,999</h3><a class="primary" href="#products">Shop Now ↗</a></div><div class="device"><div class="camera">● ●<br> ●</div><div class="screen">◉</div></div></section>
-<section class="categories"><button *ngFor="let c of categories" [class.selected]="category()===c" (click)="category.set(c)">{{c}}</button></section>
-<div class="section-head"><h2 id="products">Featured Devices</h2><label><span class="sr-only">Search devices</span><input placeholder="Search products" [value]="query()" (input)="query.set($any($event.target).value)"></label></div>
-<section class="products">@for(p of products();track p.id){<article class="product"><div class="device-thumb"><div class="mini-phone"><span>● ●<br> ●</span></div></div><span class="tag">{{p.tag || 'Featured'}}</span><h3>{{p.name}}</h3><p>{{p.storage}}</p><strong>{{p.price | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong><button (click)="enquire(p)">Enquire on WhatsApp</button><button class="secondary" (click)="add(p)">Add to cart</button></article>}@empty{<p>No devices match your search.</p>}</section>
-<section class="cart-summary"><span>Cart: {{cart().length}} items</span><strong>{{total() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong><span class="demo">Checkout is not connected yet.</span></section>
-</main>
-<footer>Nova Mobile is a fictional demo storefront · Built by Sim DevHub</footer></div>
+  <header class="store-header">
+    <a class="brand" routerLink="/"><span class="brand-icon">N</span> Nova Mobile</a>
+    <nav aria-label="Store navigation"><a href="#products">Shop</a><a href="#products">Deals</a><a href="#products">Accessories</a><a routerLink="/admin">Business portal</a></nav>
+    <a routerLink="/login" class="sign-in">Sign in</a>
+    <a class="cart" routerLink="/checkout" [attr.aria-label]="'Cart with ' + cart.count() + ' items'">🛍 {{cart.count()}}</a>
+  </header>
+  <main>
+    <section class="hero"><div class="hero-copy"><span class="eyebrow">Latest Release</span><h1>iPhone 16 Pro</h1><p>Pro. In every way.</p><h3>From R26,999</h3><a class="primary" href="#products">Shop Now ↗</a></div><div class="device" aria-hidden="true"><div class="camera">● ●<br> ●</div><div class="screen">◉</div></div></section>
+    <section class="categories" aria-label="Product categories">
+      @for(c of categories; track c){<button type="button" [class.selected]="category()===c" [attr.aria-pressed]="category()===c" (click)="category.set(c)">{{c}}</button>}
+    </section>
+    <div class="section-head"><h2 id="products">Featured Devices</h2><label><span class="sr-only">Search devices</span><input placeholder="Search products" [value]="query()" (input)="query.set($any($event.target).value)"></label></div>
+    <section class="products">
+      @for(p of products();track p.id){
+        <article class="product"><div class="device-thumb"><div class="mini-phone"><span>● ●<br> ●</span></div></div><span class="tag">{{p.tag || 'Featured'}}</span><h3>{{p.name}}</h3><p>{{p.storage}}</p><strong>{{p.price | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong><button type="button" (click)="enquire(p)">Enquire on WhatsApp</button><button type="button" class="secondary" (click)="add(p)">Add to cart</button></article>
+      }@empty{<p>No devices match your search.</p>}
+    </section>
+    <section class="cart-summary"><span>Cart: {{cart.count()}} items</span><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong><a routerLink="/checkout" class="primary">Review cart →</a><span class="demo">Prototype only — checkout does not take payments.</span></section>
+  </main>
+  <footer>Nova Mobile is a fictional demo storefront · Built by Sim DevHub</footer>
+</div>

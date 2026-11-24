@@ -1,0 +1,30 @@
+<div class="checkout-shell">
+  <header><a routerLink="/" class="brand"><span>◆</span> Nova Mobile</a><span class="secure">♢ Secure checkout preview</span></header>
+  <main>
+    <div class="heading"><a routerLink="/">← Continue shopping</a><h1>Your checkout</h1><p>Review your basket, delivery and payment options.</p></div>
+    @if(cart.count()===0) {
+      <section class="panel empty"><h2>Your cart is empty</h2><p>Explore our products to add your first device.</p><a routerLink="/" class="action">Browse products</a></section>
+    } @else {
+      <div class="columns">
+        <section class="left">
+          <div class="panel"><h2>1. Your items</h2>
+            @for(line of cart.lines();track line.product.id){
+              <div class="line"><div><strong>{{line.product.name}}</strong><small>{{line.product.storage}}</small><small>{{line.product.price | currency:'ZAR':'symbol-narrow':'1.0-0'}} each</small></div><div class="qty"><button type="button" [attr.aria-label]="'Remove one ' + line.product.name" (click)="cart.setQuantity(line.product.id,line.quantity-1)">−</button><span>{{line.quantity}}</span><button type="button" [attr.aria-label]="'Add one ' + line.product.name" (click)="cart.setQuantity(line.product.id,line.quantity+1)">+</button></div></div>
+            }
+          </div>
+          <div class="panel"><h2>2. Delivery</h2>
+            @for(item of deliveryMethods;track item.id){
+              <button type="button" class="choice" [class.selected]="delivery()===item.id" [attr.aria-pressed]="delivery()===item.id" (click)="selectDelivery(item.id)"><span class="radio"></span><span><strong>{{item.name}}</strong><small>{{item.detail}}</small></span></button>
+            }
+          </div>
+          <div class="panel"><h2>3. Payment</h2>
+            @for(item of paymentMethods;track item.id){
+              <button type="button" class="choice" [class.selected]="payment()===item.id" [attr.aria-pressed]="payment()===item.id" (click)="selectPayment(item.id)"><span class="radio"></span><span><strong>{{item.name}}</strong><small>{{item.detail}}</small></span></button>
+            }
+          </div>
+        </section>
+        <aside class="panel summary"><h2>Order summary</h2><div class="sumrow"><span>Items ({{cart.count()}})</span><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong></div><div class="sumrow"><span>Delivery</span><span>Calculated when connected</span></div><hr><div class="sumrow total"><strong>Subtotal</strong><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong></div><p>Delivery and final payable total will be calculated securely by the backend.</p><button type="button" class="action" (click)="previewOrder()">Preview order (demo)</button>@if(notice()){<p class="notice" role="status">{{notice()}}</p>}<p class="security">No live payments or bookings take place in this prototype.</p></aside>
+      </div>
+    }
+  </main>
+</div>
