@@ -50,6 +50,17 @@ public sealed class VerifiedPaymentProcessorTests
             evt with { Provider = "OtherProvider" }, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.OrderNotFound, await process.ConfirmAsync(
             evt with { TenantId = Guid.NewGuid() }, CancellationToken.None));
+        // An unconfigured placeholder cannot mark stock paid, even if an
+        // internally verified event is handed to this service.
+        await db.PaymentIntents.Where(x => x.Id == intentId)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, "Unconfigured"));
+        Assert.Equal(PaymentConfirmationResult.ReviewRequired, await process.ConfirmAsync(
+            evt with { ProviderEventId = Guid.NewGuid().ToString("N") }, CancellationToken.None));
+        Assert.Equal("Reserved", (await db.SerialisedDevices.AsNoTracking()
+            .SingleAsync(d => d.Id == deviceId)).Status);
+        await db.PaymentIntents.Where(x => x.Id == intentId)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, "AwaitingVerification"));
+
         Assert.Equal(PaymentConfirmationResult.Paid, await process.ConfirmAsync(evt, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.Duplicate, await process.ConfirmAsync(evt, CancellationToken.None));
         Assert.Equal("Paid", (await db.RetailOrders.AsNoTracking().SingleAsync(o => o.Id == reserve.OrderId)).Status);
