@@ -111,8 +111,7 @@ public sealed class SandboxPaymentJourneyTests
             GatewayNotification notification, CancellationToken ct)
         {
             if (!notification.Headers.TryGetValue("X-Fixture-Signature", out var submitted) ||
-                submitted.Length != 64 || !Convert.TryFromHexString(submitted, new byte[32], out var written) ||
-                written != 32)
+                submitted.Length != 64 || !submitted.All(Uri.IsHexDigit))
                 return Task.FromResult<VerifiedPaymentEvent?>(null);
             var actual = Convert.FromHexString(submitted);
             var signature = HMACSHA256.HashData(

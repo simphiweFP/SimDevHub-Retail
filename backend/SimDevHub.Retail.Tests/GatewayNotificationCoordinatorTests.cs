@@ -82,8 +82,7 @@ public sealed class GatewayNotificationCoordinatorTests
             GatewayNotification notification, CancellationToken ct)
         {
             if (!notification.Headers.TryGetValue("X-Test-Signature", out var signature) ||
-                !Convert.TryFromHexString(signature, new byte[32], out var bytesWritten) ||
-                bytesWritten != 32)
+                !signature.All(Uri.IsHexDigit))
                 return Task.FromResult<VerifiedPaymentEvent?>(null);
             var signatureBytes = Convert.FromHexString(signature);
             var expected = HMACSHA256.HashData(
