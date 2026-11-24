@@ -18,6 +18,7 @@ export class StorefrontComponent implements OnInit {
   readonly query = signal('');
   readonly category = signal('All');
   readonly categories = ['All', 'Phones', 'Tablets', 'Smartwatches', 'Accessories', 'Chargers', 'Deals'];
+  readonly featured = computed(() => this.catalogue.products()[0] ?? null);
   readonly products = computed(() => this.catalogue.products().filter(product => {
     const category = this.category();
     const matchesCategory = category === 'All' || (category === 'Deals' ? !!product.tag : product.category === category);

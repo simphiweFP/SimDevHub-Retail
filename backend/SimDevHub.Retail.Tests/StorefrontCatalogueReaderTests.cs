@@ -38,4 +38,14 @@ public sealed class StorefrontCatalogueReaderTests
         Assert.Null(await reader.GetPublishedAsync("hidden", CancellationToken.None));
         Assert.Null(await reader.GetPublishedAsync("missing", CancellationToken.None));
     }
+
+    [Fact]
+    public void InitialPostgresMigration_IsDiscoverable()
+    {
+        var options = new DbContextOptionsBuilder<RetailDbContext>()
+            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused")
+            .Options;
+        using var db = new RetailDbContext(options);
+        Assert.Contains("20261124103000_InitialRetailCatalogue", db.Database.GetMigrations());
+    }
 }

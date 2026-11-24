@@ -6,8 +6,9 @@
     <a class="cart" routerLink="/checkout" [attr.aria-label]="'Cart with ' + cart.count() + ' items'">🛍 {{cart.count()}}</a>
   </header>
   <main>
+    @if(catalogue.source()==='error'){<div role="alert" class="demo-notice">Products are currently unavailable. Please try again later. No orders are being accepted.</div>}
     @if(catalogue.isDemo()){<div role="status" class="demo-notice">Demo catalogue · API unavailable. Prices and stock are illustrative; no purchases can be processed.</div>}
-    <section class="hero"><div class="hero-copy"><span class="eyebrow">Latest Release</span><h1>iPhone 16 Pro</h1><p>Pro. In every way.</p><h3>From R26,999</h3><a class="primary" href="#products">Shop Now ↗</a></div><div class="device" aria-hidden="true"><div class="camera">● ●<br> ●</div><div class="screen">◉</div></div></section>
+    <section class="hero"><div class="hero-copy"><span class="eyebrow">Latest Release</span><h1>{{featured()?.name ?? "Explore our devices"}}</h1><p>{{featured()?.storage ?? "Quality technology, thoughtfully selected."}}</p>@if(featured()){<h3>From {{featured()!.price | currency:"ZAR":"symbol-narrow":"1.0-0"}}</h3>}<a class="primary" href="#products">Shop Now ↗</a></div><div class="device" aria-hidden="true"><div class="camera">● ●<br> ●</div><div class="screen">◉</div></div></section>
     <section class="categories" aria-label="Product categories">
       @for(c of categories; track c){<button type="button" [class.selected]="category()===c" [attr.aria-pressed]="category()===c" (click)="category.set(c)">{{c}}</button>}
     </section>

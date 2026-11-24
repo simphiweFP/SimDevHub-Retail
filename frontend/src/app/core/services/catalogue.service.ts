@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, isDevMode, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import { Product } from '../models/product';
 
@@ -9,7 +9,7 @@ interface StorefrontResponse {
   products: Product[];
 }
 
-export type CatalogueSource = 'loading' | 'live' | 'demo';
+export type CatalogueSource = 'loading' | 'live' | 'demo' | 'error';
 
 @Injectable({ providedIn: 'root' })
 export class CatalogueService {
@@ -37,10 +37,15 @@ export class CatalogueService {
       this.storeName.set(data.storeName);
       this.source.set('live');
     } catch {
-      // Never mistake fallback data for real retailer inventory.
-      this.productsState.set(this.demoProducts);
-      this.storeName.set('Nova Mobile');
-      this.source.set('demo');
+      if (isDevMode()) {
+        // Only local development can substitute clearly labelled fictional products.
+        this.productsState.set(this.demoProducts);
+        this.storeName.set('Nova Mobile');
+        this.source.set('demo');
+      } else {
+        this.productsState.set([]);
+        this.source.set('error');
+      }
     }
   }
 }
