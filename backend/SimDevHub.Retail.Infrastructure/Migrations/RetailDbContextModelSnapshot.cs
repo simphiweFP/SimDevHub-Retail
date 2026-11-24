@@ -118,5 +118,24 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.HasIndex(x => x.TenantId);
             e.HasOne(x => x.Device).WithMany(x => x.Movements).HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<RetailOrder>(e =>
+        {
+            e.ToTable("retail_orders", t => t.HasCheckConstraint("ck_orders_nonnegative_price", "\"UnitPrice\" >= 0"));
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.TenantId);
+            e.Property(x => x.ProductId);
+            e.Property(x => x.DeviceId);
+            e.Property(x => x.Status).IsRequired().HasMaxLength(30);
+            e.Property(x => x.UnitPrice).HasPrecision(14, 2);
+            e.Property(x => x.CreatedAt);
+            e.Property(x => x.ReservedUntil);
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasIndex(x => x.ProductId);
+            e.HasIndex(x => x.DeviceId);
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }

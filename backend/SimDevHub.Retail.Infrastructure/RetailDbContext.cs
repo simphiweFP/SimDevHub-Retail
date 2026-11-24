@@ -13,6 +13,7 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
     public DbSet<StaffInvitation> StaffInvitations => Set<StaffInvitation>();
     public DbSet<SerialisedDevice> SerialisedDevices => Set<SerialisedDevice>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<RetailOrder> RetailOrders => Set<RetailOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,5 +86,14 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         movement.HasIndex(x => new { x.DeviceId, x.OccurredAt });
         movement.HasIndex(x => x.TenantId);
         movement.HasOne(x => x.Device).WithMany(x => x.Movements).HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        var order = modelBuilder.Entity<RetailOrder>();
+        order.ToTable("retail_orders", t => t.HasCheckConstraint("ck_orders_nonnegative_price", "\"UnitPrice\" >= 0"));
+        order.HasKey(x => x.Id);
+        order.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        order.Property(x => x.UnitPrice).HasPrecision(14, 2);
+        order.HasIndex(x => new { x.TenantId, x.Status });
+        order.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
     }
 }
