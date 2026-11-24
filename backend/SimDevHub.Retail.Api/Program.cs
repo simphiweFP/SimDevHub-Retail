@@ -21,6 +21,8 @@ builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
 builder.Services.AddScoped<IReservationExpiry, ReservationExpiryService>();
 builder.Services.AddScoped<IVerifiedPaymentProcessor, VerifiedPaymentProcessor>();
 builder.Services.AddScoped<IGatewayNotificationCoordinator, GatewayNotificationCoordinator>();
+builder.Services.AddScoped<IPayfastSandboxMerchant, ConfiguredPayfastSandboxMerchant>();
+// No Payfast webhook verifier is registered: public payment confirmation remains disabled.
 builder.Services.AddScoped<IPaymentIntentService, PaymentIntentService>();
 builder.Services.AddScoped<IPaymentReconciliationReader, PaymentReconciliationReader>();
 builder.Services.AddSingleton(TimeProvider.System);
