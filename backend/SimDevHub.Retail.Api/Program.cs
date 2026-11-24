@@ -19,6 +19,7 @@ builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
 builder.Services.AddScoped<IInventoryReceiving, InventoryReceivingService>();
 builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
 builder.Services.AddScoped<IReservationExpiry, ReservationExpiryService>();
+builder.Services.AddScoped<IVerifiedPaymentProcessor, VerifiedPaymentProcessor>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddRateLimiter(options =>
 {

@@ -14,6 +14,7 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
     public DbSet<SerialisedDevice> SerialisedDevices => Set<SerialisedDevice>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<RetailOrder> RetailOrders => Set<RetailOrder>();
+    public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,5 +96,16 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         order.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         order.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
         order.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        var payment = modelBuilder.Entity<PaymentEvent>();
+        payment.ToTable("payment_events");
+        payment.HasKey(x => x.Id);
+        payment.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        payment.Property(x => x.ProviderEventId).HasMaxLength(160).IsRequired();
+        payment.Property(x => x.Outcome).HasMaxLength(30).IsRequired();
+        payment.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+        payment.Property(x => x.Amount).HasPrecision(14, 2);
+        payment.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
+        payment.HasIndex(x => new { x.TenantId, x.OrderId });
+        payment.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
     }
 }

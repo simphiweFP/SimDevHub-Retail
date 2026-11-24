@@ -137,5 +137,23 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<PaymentEvent>(e =>
+        {
+            e.ToTable("payment_events");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.TenantId);
+            e.Property(x => x.OrderId);
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(60);
+            e.Property(x => x.ProviderEventId).IsRequired().HasMaxLength(160);
+            e.Property(x => x.Outcome).IsRequired().HasMaxLength(30);
+            e.Property(x => x.Amount).HasPrecision(14, 2);
+            e.Property(x => x.Currency).IsRequired().HasMaxLength(3);
+            e.Property(x => x.RecordedAt);
+            e.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.OrderId });
+            e.HasIndex(x => x.OrderId);
+            e.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }
