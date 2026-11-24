@@ -23,3 +23,4 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: dotnet build backend/SimDevHub.Retail.Api/SimDevHub.Retail.Api.csproj
+      - run: dotnet test backend/SimDevHub.Retail.Tests/SimDevHub.Retail.Tests.csproj --configuration Release
