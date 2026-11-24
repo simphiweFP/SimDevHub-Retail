@@ -17,6 +17,22 @@ jobs:
       - run: npm run build
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: retail_integration_tests
+          POSTGRES_USER: retail_test
+          POSTGRES_PASSWORD: local-ci-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U retail_test -d retail_integration_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RETAIL_TEST_DB_CONNECTION: Host=localhost;Port=5432;Database=retail_integration_tests;Username=retail_test;Password=local-ci-test-only
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
