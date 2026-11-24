@@ -121,6 +121,23 @@ if (identityReady)
         return membership is null ? Results.Forbid() : Results.Ok(membership);
     }).RequireAuthorization();
 
+    app.MapGet("/api/staff/{storeSlug}/payment-exceptions", async (
+        string storeSlug, ClaimsPrincipal principal, IStaffAccess access,
+        IPaymentReconciliationReader reconciliation, CancellationToken ct) =>
+    {
+        // Never accept tenant IDs or roles from the request query or headers.
+        var issuer = principal.FindFirst("iss")?.Value;
+        var subject = principal.FindFirst("sub")?.Value;
+        if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject))
+            return Results.Forbid();
+        var membership = await access.ResolveAsync(issuer, subject, storeSlug, ct);
+        if (membership is null ||
+            membership.Role is not ("Owner" or "Manager" or "FinanceOfficer"))
+            return Results.Forbid();
+        var exceptions = await reconciliation.GetUnresolvedAsync(membership.TenantId, 50, ct);
+        return Results.Ok(exceptions);
+    }).RequireAuthorization();
+
     app.MapPost("/api/staff/invitations/accept", async (
         AcceptInvitationRequest request, ClaimsPrincipal principal,
         IStaffInvitations invitations, CancellationToken ct) =>
