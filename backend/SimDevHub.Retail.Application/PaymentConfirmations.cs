@@ -1,7 +1,7 @@
 namespace SimDevHub.Retail.Application;
 
 public sealed record VerifiedPaymentEvent(
-    Guid TenantId, Guid OrderId, string Provider, string ProviderEventId,
+    Guid TenantId, Guid OrderId, Guid PaymentIntentId, string Provider, string ProviderEventId,
     decimal Amount, string Currency);
 
 public enum PaymentConfirmationResult

@@ -144,6 +144,7 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.Property(x => x.Id).ValueGeneratedOnAdd();
             e.Property(x => x.TenantId);
             e.Property(x => x.OrderId);
+            e.Property(x => x.PaymentIntentId);
             e.Property(x => x.Provider).IsRequired().HasMaxLength(60);
             e.Property(x => x.ProviderEventId).IsRequired().HasMaxLength(160);
             e.Property(x => x.Outcome).IsRequired().HasMaxLength(30);
@@ -153,7 +154,9 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.OrderId });
             e.HasIndex(x => x.OrderId);
+            e.HasIndex(x => x.PaymentIntentId);
             e.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.PaymentIntent).WithMany().HasForeignKey(x => x.PaymentIntentId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<PaymentIntent>(e =>
         {

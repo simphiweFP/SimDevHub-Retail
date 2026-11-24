@@ -108,6 +108,7 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         payment.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
         payment.HasIndex(x => new { x.TenantId, x.OrderId });
         payment.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        payment.HasOne(x => x.PaymentIntent).WithMany().HasForeignKey(x => x.PaymentIntentId).OnDelete(DeleteBehavior.Restrict);
         var intent = modelBuilder.Entity<PaymentIntent>();
         intent.ToTable("payment_intents");
         intent.HasKey(x => x.Id);

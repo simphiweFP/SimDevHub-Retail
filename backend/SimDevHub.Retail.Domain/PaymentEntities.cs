@@ -6,6 +6,8 @@ public sealed class PaymentEvent
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
     public Guid OrderId { get; set; }
+    public Guid? PaymentIntentId { get; set; }
+    public PaymentIntent? PaymentIntent { get; set; }
     public required string Provider { get; set; }
     public required string ProviderEventId { get; set; }
     public required string Outcome { get; set; }

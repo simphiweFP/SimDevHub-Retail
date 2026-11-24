@@ -32,14 +32,29 @@ public sealed class VerifiedPaymentProcessorTests
         Assert.Equal(ReserveOrderStatus.Reserved, reserve.Status);
         Assert.NotNull(reserve.OrderId);
 
+        var intentId = Guid.NewGuid();
+        db.PaymentIntents.Add(new PaymentIntent
+        {
+            Id = intentId, TenantId = tenantId, OrderId = reserve.OrderId!.Value,
+            Provider = "TestProvider", IdempotencyKey = Guid.NewGuid().ToString("N"),
+            Status = "AwaitingVerification", Amount = 8999m, Currency = "ZAR", CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
         var process = new VerifiedPaymentProcessor(db, TimeProvider.System);
-        var evt = new VerifiedPaymentEvent(tenantId, reserve.OrderId.Value, "TestProvider", Guid.NewGuid().ToString("N"), 8999m, "ZAR");
+        var evt = new VerifiedPaymentEvent(tenantId, reserve.OrderId.Value, intentId, "TestProvider", Guid.NewGuid().ToString("N"), 8999m, "ZAR");
         Assert.Equal(PaymentConfirmationResult.Invalid, await process.ConfirmAsync(
             evt with { Currency = "USD" }, CancellationToken.None));
+        Assert.Equal(PaymentConfirmationResult.Invalid, await process.ConfirmAsync(
+            evt with { PaymentIntentId = Guid.NewGuid() }, CancellationToken.None));
+        Assert.Equal(PaymentConfirmationResult.Invalid, await process.ConfirmAsync(
+            evt with { Provider = "OtherProvider" }, CancellationToken.None));
+        Assert.Equal(PaymentConfirmationResult.Invalid, await process.ConfirmAsync(
+            evt with { TenantId = Guid.NewGuid() }, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.Paid, await process.ConfirmAsync(evt, CancellationToken.None));
         Assert.Equal(PaymentConfirmationResult.Duplicate, await process.ConfirmAsync(evt, CancellationToken.None));
         Assert.Equal("Paid", (await db.RetailOrders.AsNoTracking().SingleAsync(o => o.Id == reserve.OrderId)).Status);
         Assert.Equal("Allocated", (await db.SerialisedDevices.AsNoTracking().SingleAsync(d => d.Id == deviceId)).Status);
+        Assert.Equal("Succeeded", (await db.PaymentIntents.AsNoTracking().SingleAsync(i => i.Id == intentId)).Status);
         Assert.Single(await db.InventoryMovements.Where(m => m.DeviceId == deviceId && m.MovementType == "PaymentAllocated").ToListAsync());
         Assert.Single(await db.PaymentEvents.Where(e => e.OrderId == reserve.OrderId && e.Outcome == "Paid").ToListAsync());
 
@@ -70,8 +85,16 @@ public sealed class VerifiedPaymentProcessorTests
         var reserve = await new OrderReservationService(db, TimeProvider.System)
             .ReserveAsync(new ReserveOrderRequest(tenantId, productId, deviceId), CancellationToken.None);
         Assert.Equal(ReserveOrderStatus.Reserved, reserve.Status);
+        var intentId = Guid.NewGuid();
+        db.PaymentIntents.Add(new PaymentIntent
+        {
+            Id = intentId, TenantId = tenantId, OrderId = reserve.OrderId!.Value,
+            Provider = "TestProvider", IdempotencyKey = Guid.NewGuid().ToString("N"),
+            Status = "AwaitingVerification", Amount = 1000m, Currency = "ZAR", CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
         var processor = new VerifiedPaymentProcessor(db, TimeProvider.System);
-        var evt = new VerifiedPaymentEvent(tenantId, reserve.OrderId!.Value, "TestProvider", Guid.NewGuid().ToString("N"), 900m, "ZAR");
+        var evt = new VerifiedPaymentEvent(tenantId, reserve.OrderId!.Value, intentId, "TestProvider", Guid.NewGuid().ToString("N"), 900m, "ZAR");
         Assert.Equal(PaymentConfirmationResult.ReviewRequired, await processor.ConfirmAsync(evt, CancellationToken.None));
         Assert.Equal("AwaitingPayment", (await db.RetailOrders.AsNoTracking().SingleAsync(o => o.Id == reserve.OrderId)).Status);
         Assert.Equal("Reserved", (await db.SerialisedDevices.AsNoTracking().SingleAsync(d => d.Id == deviceId)).Status);
