@@ -16,6 +16,7 @@ builder.Services.AddDbContext<RetailDbContext>(options => options.UseNpgsql(conn
 builder.Services.AddScoped<IStorefrontCatalogue, StorefrontCatalogueReader>();
 builder.Services.AddScoped<IStaffAccess, StaffAccessReader>();
 builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
+builder.Services.AddScoped<IInventoryReceiving, InventoryReceivingService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddRateLimiter(options =>
 {

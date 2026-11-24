@@ -88,5 +88,35 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.HasIndex(x => new { x.TenantId, x.Email });
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<SerialisedDevice>(e =>
+        {
+            e.ToTable("serialised_devices", t => t.HasCheckConstraint("ck_device_imei_15_digits", "\"Imei\" ~ '^[0-9]{15}$'"));
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.TenantId);
+            e.Property(x => x.ProductId);
+            e.Property(x => x.Imei).IsRequired().HasMaxLength(15);
+            e.Property(x => x.Status).IsRequired().HasMaxLength(24);
+            e.Property(x => x.ReceivedAt);
+            e.HasIndex(x => new { x.TenantId, x.Imei }).IsUnique();
+            e.HasIndex(x => x.ProductId);
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<InventoryMovement>(e =>
+        {
+            e.ToTable("inventory_movements");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.TenantId);
+            e.Property(x => x.DeviceId);
+            e.Property(x => x.MovementType).IsRequired().HasMaxLength(30);
+            e.Property(x => x.OccurredAt);
+            e.Property(x => x.Reference).IsRequired().HasMaxLength(100);
+            e.HasIndex(x => new { x.DeviceId, x.OccurredAt });
+            e.HasIndex(x => x.TenantId);
+            e.HasOne(x => x.Device).WithMany(x => x.Movements).HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }
