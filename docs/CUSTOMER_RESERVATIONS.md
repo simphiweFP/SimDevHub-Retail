@@ -27,3 +27,23 @@ The endpoint creates a reservation only; it does not start or collect
 payment or expose Payfast merchant credentials. The current device selection
 uses an internal DeviceId; a future storefront stock-selection API must avoid
 exposing internal serial/IMEI identifiers.
+
+## Product-only Angular reservation (opt-in)
+
+Authenticated customers may POST `/api/storefront/{storeSlug}/reserve-product` with
+`{ "productId": "<catalogue UUID>" }`. The backend resolves the active
+store and persisted OIDC customer, selects an available serialised device,
+and reuses the existing conditional, transactional inventory reservation.
+The response contains order ID, backend price and expiry but **never IMEI**.
+Concurrent buyers cannot allocate the same device. The selection is limited
+to one device and may return 409 when stock is unavailable.
+
+The Angular checkout only exposes this when its optional public
+`/auth-config.json` sets `enableReservations: true`, the customer is
+signed in and exactly one actual UUID catalogue item is in the basket.
+The API separately requires `Retail:EnableCustomerReservations=true` and
+the reservation-expiry worker (required during startup). Never use the
+browser basket subtotal as an authoritative charge. Multi-item carts,
+delivery fees, discounts, tax, live merchant checkout and refunds remain
+out of scope. Provider payments are independent, and no successful payment
+is inferred from creating a reservation.

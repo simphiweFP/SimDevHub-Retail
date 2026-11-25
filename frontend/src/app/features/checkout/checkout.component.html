@@ -3,7 +3,7 @@
   <main>
     <div class="heading"><a [routerLink]="homeLink()">← Continue shopping</a><h1>Your checkout</h1><p>Review your basket, delivery and payment options.</p></div>
     @if(cart.count()===0) {
-      <section class="panel empty"><h2>{{reservedOrder() ? 'Reservation created' : 'Your cart is empty'}}</h2><p>{{reservedOrder() ? 'One device is held temporarily. No payment has been taken.' : 'Explore our products to add your first device.'}}</p>@if(reservedOrder()){<a [routerLink]="accountLink()" class="action">View my orders</a>}@else{<a [routerLink]="homeLink()" class="action">Browse products</a>}</section>
+      <section class="panel empty">@if(notice()){<p class="notice" role="status">{{notice()}}</p>}<h2>{{reservedOrder() ? 'Reservation created' : 'Your cart is empty'}}</h2><p>{{reservedOrder() ? 'One device is held temporarily. No payment has been taken.' : 'Explore our products to add your first device.'}}</p>@if(reservedOrder()){<a [routerLink]="accountLink()" class="action">View my orders</a>}@else{<a [routerLink]="homeLink()" class="action">Browse products</a>}</section>
     } @else {
       <div class="columns">
         <section class="left">

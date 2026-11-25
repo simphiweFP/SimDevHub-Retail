@@ -63,7 +63,7 @@ export class CheckoutComponent implements OnInit {
     try {
       const product = this.cart.lines()[0].product;
       const result = await this.auth.reserveOne(this.storeSlug(), product.id);
-      if (result.status !== 'Reserved' || !result.orderId)
+      if (!result.orderId || !/^[0-9a-f-]{36}$/i.test(result.orderId))
         throw new Error('Reservation not confirmed');
       this.reservedOrder.set(result.orderId);
       this.cart.clear();
