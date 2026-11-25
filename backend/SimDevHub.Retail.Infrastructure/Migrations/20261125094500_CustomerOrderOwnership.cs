@@ -18,8 +18,10 @@ public sealed class CustomerOrderOwnership : Migration
             "retail_orders", new[] { "TenantId", "CustomerUserId", "CreatedAt" });
         m.CreateIndex("IX_retail_orders_CustomerUserId",
             "retail_orders", "CustomerUserId");
-        m.AddForeignKey("FK_retail_orders_retail_users_CustomerUserId",
-            "retail_orders", "CustomerUserId", "retail_users", "Id",
+        m.AddForeignKey(
+            name: "FK_retail_orders_retail_users_CustomerUserId",
+            table: "retail_orders", column: "CustomerUserId",
+            principalTable: "retail_users", principalColumn: "Id",
             onDelete: ReferentialAction.Restrict);
     }
 
