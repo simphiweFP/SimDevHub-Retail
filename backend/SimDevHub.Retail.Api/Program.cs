@@ -37,6 +37,7 @@ builder.Services.AddHttpClient<IPayfastServerConfirmation, PayfastSandboxServerC
 // No Payfast webhook verifier is registered: public payment confirmation remains disabled.
 builder.Services.AddScoped<IPaymentIntentService, PaymentIntentService>();
 builder.Services.AddScoped<IPayfastSandboxCheckoutStart, PayfastSandboxCheckoutStart>();
+builder.Services.AddScoped<ICustomerSandboxPayment, CustomerSandboxPayment>();
 builder.Services.AddScoped<IPaymentReconciliationReader, PaymentReconciliationReader>();
 builder.Services.AddSingleton(TimeProvider.System);
 var expiryWorkerEnabled = builder.Configuration.GetValue<bool>("Retail:EnableReservationExpiryWorker");
@@ -252,6 +253,49 @@ if (identityReady)
           .DisableAntiforgery();
     }
 
+    // Explicit opt-in for authenticated sandbox checkout; never Production.
+    if (!app.Environment.IsProduction() &&
+        app.Configuration.GetValue<bool>("Retail:EnableCustomerReservations") &&
+        expiryWorkerEnabled &&
+        app.Configuration.GetValue<bool>("Payments:PayfastSandbox:EnableWebhook") &&
+        app.Configuration.GetValue<bool>("Payments:PayfastSandbox:EnableCheckout") &&
+        app.Configuration.GetValue<bool>("Payments:PayfastSandbox:EnableCustomerCheckout") &&
+        sandboxSource.IsConfigured)
+    {
+        app.MapPost("/api/storefront/{storeSlug}/orders/{orderId:guid}/payfast-sandbox",
+            async (string storeSlug, Guid orderId, CustomerSandboxPaymentBody body,
+                ClaimsPrincipal principal, ICustomerSandboxPayment checkout,
+                CancellationToken ct) =>
+            {
+                var issuer = principal.FindFirst("iss")?.Value;
+                var subject = principal.FindFirst("sub")?.Value;
+                if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject))
+                    return Results.Forbid();
+
+                var outcome = await checkout.StartAsync(new CustomerSandboxPaymentRequest(
+                    issuer, subject, storeSlug, orderId, body.IdempotencyKey ?? ""), ct);
+                return outcome.Status switch
+                {
+                    PayfastCheckoutStartStatus.Ready or PayfastCheckoutStartStatus.Replayed =>
+                        Results.Ok(new
+                        {
+                            intentId = outcome.IntentId,
+                            action = outcome.FormAction,
+                            fields = outcome.FormFields
+                        }),
+                    PayfastCheckoutStartStatus.Invalid => Results.BadRequest(),
+                    PayfastCheckoutStartStatus.Conflict => Results.Conflict(),
+                    PayfastCheckoutStartStatus.Unavailable =>
+                        Results.StatusCode(StatusCodes.Status503ServiceUnavailable),
+                    PayfastCheckoutStartStatus.Expired => Results.Conflict(),
+                    _ => Results.NotFound()
+                };
+            })
+            .RequireAuthorization()
+            .RequireRateLimiting("customer-reserve")
+            .DisableAntiforgery();
+    }
+
     // Disabled until the automated 15-minute reservation expiry worker and
     // customer login/onboarding are configured for this deployment.
     if (app.Configuration.GetValue<bool>("Retail:EnableCustomerReservations"))
@@ -352,4 +396,5 @@ if (identityReady)
 app.Run();
 public sealed record AcceptInvitationRequest(string? Token);
 public sealed record CustomerReservationBody(Guid ProductId, Guid DeviceId);
+public sealed record CustomerSandboxPaymentBody(string? IdempotencyKey);
 public partial class Program;
