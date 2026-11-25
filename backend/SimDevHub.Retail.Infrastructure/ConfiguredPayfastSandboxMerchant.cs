@@ -28,6 +28,7 @@ public sealed class ConfiguredPayfastSandboxMerchant(IConfiguration configuratio
 
         var merchantId = section["MerchantId"];
         var passphrase = section["Passphrase"];
+        var merchantKey = section["MerchantKey"];
         if (merchantId is null || merchantId.Length != 8 ||
             !merchantId.All(char.IsAsciiDigit) ||
             string.IsNullOrWhiteSpace(passphrase) ||
@@ -37,6 +38,6 @@ public sealed class ConfiguredPayfastSandboxMerchant(IConfiguration configuratio
         // Preserve the configured passphrase exactly; it must match the
         // passphrase that Payfast uses for payment form / ITN signing.
         return Task.FromResult<PayfastMerchantSettings?>(
-            new PayfastMerchantSettings(merchantId, passphrase));
+            new PayfastMerchantSettings(merchantId, passphrase, merchantKey));
     }
 }

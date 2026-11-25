@@ -32,6 +32,7 @@ builder.Services.AddHttpClient<IPayfastServerConfirmation, PayfastSandboxServerC
 });
 // No Payfast webhook verifier is registered: public payment confirmation remains disabled.
 builder.Services.AddScoped<IPaymentIntentService, PaymentIntentService>();
+builder.Services.AddScoped<IPayfastSandboxCheckoutStart, PayfastSandboxCheckoutStart>();
 builder.Services.AddScoped<IPaymentReconciliationReader, PaymentReconciliationReader>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddRateLimiter(options =>

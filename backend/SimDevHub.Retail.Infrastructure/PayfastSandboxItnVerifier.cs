@@ -104,7 +104,7 @@ public sealed class PayfastSandboxItnVerifier(
     }
 }
 
-public sealed record PayfastMerchantSettings(string MerchantId, string Passphrase);
+public sealed record PayfastMerchantSettings(string MerchantId, string Passphrase, string? MerchantKey = null);
 
 public interface IPayfastSandboxMerchant
 {

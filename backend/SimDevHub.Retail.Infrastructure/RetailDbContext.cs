@@ -119,6 +119,8 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         intent.Property(x => x.Currency).HasMaxLength(3).IsRequired();
         intent.Property(x => x.Amount).HasPrecision(14, 2);
         intent.HasIndex(x => new { x.TenantId, x.OrderId, x.IdempotencyKey }).IsUnique();
+        intent.HasIndex(x => x.OrderId, "IX_payment_intents_OnePayfastSandboxPerOrder")
+            .IsUnique().HasFilter("\"Provider\" = 'PayfastSandbox'");
         intent.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
         var receipt = modelBuilder.Entity<GatewayWebhookReceipt>();
         receipt.ToTable("gateway_webhook_receipts");

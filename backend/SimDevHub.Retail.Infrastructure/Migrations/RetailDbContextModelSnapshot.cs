@@ -172,6 +172,8 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.Property(x => x.Currency).IsRequired().HasMaxLength(3);
             e.Property(x => x.CreatedAt);
             e.HasIndex(x => new { x.TenantId, x.OrderId, x.IdempotencyKey }).IsUnique();
+            e.HasIndex(x => x.OrderId, "IX_payment_intents_OnePayfastSandboxPerOrder")
+                .IsUnique().HasFilter("\"Provider\" = 'PayfastSandbox'");
             e.HasIndex(x => x.OrderId);
             e.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
         });
