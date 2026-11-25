@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using SimDevHub.Retail.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
@@ -37,6 +38,18 @@ builder.Services.AddScoped<IPaymentIntentService, PaymentIntentService>();
 builder.Services.AddScoped<IPayfastSandboxCheckoutStart, PayfastSandboxCheckoutStart>();
 builder.Services.AddScoped<IPaymentReconciliationReader, PaymentReconciliationReader>();
 builder.Services.AddSingleton(TimeProvider.System);
+var expiryWorkerEnabled = builder.Configuration.GetValue<bool>("Retail:EnableReservationExpiryWorker");
+if (builder.Configuration.GetValue<bool>("Retail:EnableCustomerReservations") && !expiryWorkerEnabled)
+    throw new InvalidOperationException(
+        "Customer reservations require Retail:EnableReservationExpiryWorker=true.");
+if (expiryWorkerEnabled)
+{
+    var seconds = builder.Configuration.GetValue<int>("Retail:ReservationExpiry:IntervalSeconds", 30);
+    var batchSize = builder.Configuration.GetValue<int>("Retail:ReservationExpiry:BatchSize", 100);
+    if (seconds is < 15 or > 300 || batchSize is < 1 or > 200)
+        throw new InvalidOperationException("Reservation expiry configuration is out of range.");
+    builder.Services.AddHostedService<ReservationExpiryWorker>();
+}
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
