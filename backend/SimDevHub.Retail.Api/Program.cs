@@ -17,6 +17,7 @@ builder.Services.AddDbContext<RetailDbContext>(options => options.UseNpgsql(conn
 builder.Services.AddScoped<IStorefrontCatalogue, StorefrontCatalogueReader>();
 builder.Services.AddScoped<IStaffAccess, StaffAccessReader>();
 builder.Services.AddScoped<ICustomerOrderAccess, CustomerOrderAccess>();
+builder.Services.AddScoped<ICustomerOnboarding, CustomerOnboardingService>();
 builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
 builder.Services.AddScoped<IInventoryReceiving, InventoryReceivingService>();
 builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
@@ -60,6 +61,16 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 20,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("customer-onboard", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(10),
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
@@ -213,6 +224,34 @@ app.MapGet("/api/storefront/{storeSlug}/products", async (
 
 if (identityReady)
 {
+    if (app.Configuration.GetValue<bool>("Retail:EnableCustomerOnboarding"))
+    {
+        app.MapPost("/api/customers/me/onboard", async (
+            ClaimsPrincipal principal, ICustomerOnboarding onboarding,
+            CancellationToken ct) =>
+        {
+            var issuer = principal.FindFirst("iss")?.Value;
+            var subject = principal.FindFirst("sub")?.Value;
+            var email = principal.FindFirst("email")?.Value;
+            var verified = principal.FindFirst("email_verified")?.Value;
+            if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject) ||
+                string.IsNullOrWhiteSpace(email) ||
+                !string.Equals(verified, "true", StringComparison.OrdinalIgnoreCase))
+                return Results.Forbid();
+
+            var result = await onboarding.RegisterAsync(
+                new VerifiedCustomerIdentity(issuer, subject, email), ct);
+            return result.Status switch
+            {
+                CustomerOnboardingStatus.Created => Results.Ok(new { id = result.UserId, created = true }),
+                CustomerOnboardingStatus.Existing => Results.Ok(new { id = result.UserId, created = false }),
+                CustomerOnboardingStatus.Invalid => Results.BadRequest(),
+                _ => Results.Conflict()
+            };
+        }).RequireAuthorization().RequireRateLimiting("customer-onboard")
+          .DisableAntiforgery();
+    }
+
     // Disabled until the automated 15-minute reservation expiry worker and
     // customer login/onboarding are configured for this deployment.
     if (app.Configuration.GetValue<bool>("Retail:EnableCustomerReservations"))
