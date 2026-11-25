@@ -95,6 +95,8 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         order.Property(x => x.Status).HasMaxLength(30).IsRequired();
         order.Property(x => x.UnitPrice).HasPrecision(14, 2);
         order.HasIndex(x => new { x.TenantId, x.Status });
+        order.HasIndex(x => new { x.TenantId, x.CustomerUserId, x.CreatedAt });
+        order.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
         order.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         order.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
         order.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);

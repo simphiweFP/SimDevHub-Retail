@@ -15,6 +15,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<RetailDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IStorefrontCatalogue, StorefrontCatalogueReader>();
 builder.Services.AddScoped<IStaffAccess, StaffAccessReader>();
+builder.Services.AddScoped<ICustomerOrderAccess, CustomerOrderAccess>();
 builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
 builder.Services.AddScoped<IInventoryReceiving, InventoryReceivingService>();
 builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
@@ -188,6 +189,21 @@ app.MapGet("/api/storefront/{storeSlug}/products", async (
 
 if (identityReady)
 {
+    app.MapGet("/api/storefront/{storeSlug}/my-orders", async (
+        string storeSlug, ClaimsPrincipal principal, ICustomerOrderAccess access,
+        CancellationToken ct) =>
+    {
+        var issuer = principal.FindFirst("iss")?.Value;
+        var subject = principal.FindFirst("sub")?.Value;
+        if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject))
+            return Results.Forbid();
+
+        // No client-provided tenant ID or user ID is accepted. Empty result
+        // means no matching active external account, tenant or owned orders.
+        var orders = await access.GetOwnedOrdersAsync(issuer, subject, storeSlug, 50, ct);
+        return Results.Ok(orders);
+    }).RequireAuthorization();
+
     app.MapGet("/api/staff/{storeSlug}/me", async (
         string storeSlug, ClaimsPrincipal principal, IStaffAccess access, CancellationToken ct) =>
     {

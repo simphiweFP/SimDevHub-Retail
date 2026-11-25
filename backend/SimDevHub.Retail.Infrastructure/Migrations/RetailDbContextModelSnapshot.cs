@@ -126,11 +126,14 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.Property(x => x.TenantId);
             e.Property(x => x.ProductId);
             e.Property(x => x.DeviceId);
+            e.Property(x => x.CustomerUserId);
             e.Property(x => x.Status).IsRequired().HasMaxLength(30);
             e.Property(x => x.UnitPrice).HasPrecision(14, 2);
             e.Property(x => x.CreatedAt);
             e.Property(x => x.ReservedUntil);
             e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasIndex(x => new { x.TenantId, x.CustomerUserId, x.CreatedAt });
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.ProductId);
             e.HasIndex(x => x.DeviceId);
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
