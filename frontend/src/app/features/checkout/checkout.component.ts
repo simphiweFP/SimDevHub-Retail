@@ -1,0 +1,83 @@
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { CartService } from '../../core/services/cart.service';
+import { CustomerAuthService } from '../../core/services/customer-auth.service';
+
+type DeliveryMethod = 'courier' | 'paxi' | 'fleet' | 'collection';
+type PaymentMethod = 'card' | 'eft' | 'bnpl';
+@Component({
+  selector: 'sdh-checkout',
+  standalone: true,
+  imports: [CurrencyPipe, RouterLink],
+  templateUrl: './checkout.component.html',
+  styleUrl: './checkout.component.scss'
+})
+export class CheckoutComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  readonly cart = inject(CartService);
+  readonly auth = inject(CustomerAuthService);
+  readonly reserving = signal(false);
+  readonly reservedOrder = signal<string | null>(null);
+  readonly accountLink = computed(() => '/s/' + this.storeSlug() + '/account');
+  readonly storeSlug = signal('nova-mobile');
+  readonly homeLink = computed(() => '/s/' + this.storeSlug());
+  ngOnInit(): void {
+    void this.auth.initialize();
+    this.route.paramMap.subscribe(params => {
+      const slug = params.get('storeSlug') ?? 'nova-mobile';
+      if (!/^[a-z0-9-]{2,80}$/.test(slug)) {
+        this.notice.set('Invalid storefront. No order can be placed.');
+        this.cart.clear();
+        return;
+      }
+      this.reservedOrder.set(null);
+      this.storeSlug.set(slug);
+      this.cart.selectStore(slug);
+    });
+  }
+  readonly delivery = signal<DeliveryMethod>('courier');
+  readonly payment = signal<PaymentMethod>('card');
+  readonly notice = signal('');
+  readonly deliveryMethods: { id: DeliveryMethod; name: string; detail: string }[] = [
+    { id: 'courier', name: 'The Courier Guy', detail: 'Door-to-door delivery · requires live quotation' },
+    { id: 'paxi', name: 'PEP / PAXI', detail: 'Collection point · subject to availability' },
+    { id: 'fleet', name: 'Store vehicle', detail: 'Retailer-managed local delivery' },
+    { id: 'collection', name: 'Collect in store', detail: 'Pickup confirmation required' }
+  ];
+  readonly paymentMethods: { id: PaymentMethod; name: string; detail: string }[] = [
+    { id: 'card', name: 'Bank card', detail: 'Gateway connection pending' },
+    { id: 'eft', name: 'Pay by bank', detail: 'Gateway connection pending' },
+    { id: 'bnpl', name: 'Pay in instalments', detail: 'Payflex / PayJustNow — eligibility and integration pending' }
+  ];
+  readonly canReserve = computed(() =>
+    this.auth.isReservationsEnabled() && this.auth.isAuthenticated() &&
+    this.cart.lines().length === 1 && this.cart.lines()[0].quantity === 1 &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      .test(this.cart.lines()[0].product.id));
+
+  async reserveSelectedDevice(): Promise<void> {
+    if (!this.canReserve() || this.reserving()) return;
+    this.reserving.set(true);
+    this.notice.set('');
+    try {
+      const product = this.cart.lines()[0].product;
+      const result = await this.auth.reserveOne(this.storeSlug(), product.id);
+      if (!result.orderId || !/^[0-9a-f-]{36}$/i.test(result.orderId))
+        throw new Error('Reservation not confirmed');
+      this.reservedOrder.set(result.orderId);
+      this.cart.clear();
+      this.notice.set('One device reserved for 15 minutes. No payment has been taken.');
+    } catch {
+      this.notice.set('Reservation unavailable. Please check your account and stock availability before retrying.');
+    } finally {
+      this.reserving.set(false);
+    }
+  }
+
+  selectDelivery(id: DeliveryMethod): void { this.delivery.set(id); this.notice.set(''); }
+  selectPayment(id: PaymentMethod): void { this.payment.set(id); this.notice.set(''); }
+  previewOrder(): void {
+    this.notice.set('Demo preview only. No order has been created, no stock reserved, and no payment processed.');
+  }
+}

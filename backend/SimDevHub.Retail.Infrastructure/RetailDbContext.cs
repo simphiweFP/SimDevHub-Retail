@@ -1,0 +1,136 @@
+using Microsoft.EntityFrameworkCore;
+using SimDevHub.Retail.Domain;
+
+namespace SimDevHub.Retail.Infrastructure;
+
+public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) : DbContext(options)
+{
+    public DbSet<RetailTenant> Tenants => Set<RetailTenant>();
+    public DbSet<CatalogueItem> CatalogueItems => Set<CatalogueItem>();
+    public DbSet<RetailUser> Users => Set<RetailUser>();
+    public DbSet<ExternalAccount> ExternalAccounts => Set<ExternalAccount>();
+    public DbSet<TenantMembership> Memberships => Set<TenantMembership>();
+    public DbSet<StaffInvitation> StaffInvitations => Set<StaffInvitation>();
+    public DbSet<SerialisedDevice> SerialisedDevices => Set<SerialisedDevice>();
+    public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<RetailOrder> RetailOrders => Set<RetailOrder>();
+    public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
+    public DbSet<PaymentIntent> PaymentIntents => Set<PaymentIntent>();
+    public DbSet<GatewayWebhookReceipt> GatewayWebhookReceipts => Set<GatewayWebhookReceipt>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        var tenant = modelBuilder.Entity<RetailTenant>();
+        tenant.ToTable("tenants");
+        tenant.HasKey(x => x.Id);
+        tenant.Property(x => x.Name).HasMaxLength(160).IsRequired();
+        tenant.Property(x => x.Slug).HasMaxLength(80).IsRequired();
+        tenant.HasIndex(x => x.Slug).IsUnique();
+        tenant.HasIndex(x => x.IsActive);
+
+        var product = modelBuilder.Entity<CatalogueItem>();
+        product.ToTable("catalogue_items", t => t.HasCheckConstraint("ck_catalogue_items_price_nonnegative", "\"Price\" >= 0"));
+        product.HasKey(x => x.Id);
+        product.Property(x => x.Name).HasMaxLength(220).IsRequired();
+        product.Property(x => x.Storage).HasMaxLength(80).IsRequired();
+        product.Property(x => x.Category).HasMaxLength(80).IsRequired();
+        product.Property(x => x.Price).HasPrecision(14, 2);
+        product.HasIndex(x => new { x.TenantId, x.IsPublished, x.Category });
+        product.HasOne(x => x.Tenant).WithMany(x => x.Products).HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+
+        var user = modelBuilder.Entity<RetailUser>();
+        user.ToTable("retail_users");
+        user.HasKey(x => x.Id);
+        user.Property(x => x.Email).HasMaxLength(320).IsRequired();
+        user.HasIndex(x => x.Email);
+        var external = modelBuilder.Entity<ExternalAccount>();
+        external.ToTable("external_accounts");
+        external.HasKey(x => x.Id);
+        external.Property(x => x.Issuer).HasMaxLength(320).IsRequired();
+        external.Property(x => x.Subject).HasMaxLength(320).IsRequired();
+        external.HasIndex(x => new { x.Issuer, x.Subject }).IsUnique();
+        external.HasOne(x => x.User).WithMany(x => x.ExternalAccounts).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+        var membership = modelBuilder.Entity<TenantMembership>();
+        membership.ToTable("tenant_memberships");
+        membership.HasKey(x => x.Id);
+        membership.Property(x => x.Role).HasMaxLength(50).IsRequired();
+        membership.HasIndex(x => new { x.TenantId, x.UserId }).IsUnique();
+        membership.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        membership.HasOne(x => x.User).WithMany(x => x.Memberships).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+        var invitation = modelBuilder.Entity<StaffInvitation>();
+        invitation.ToTable("staff_invitations");
+        invitation.HasKey(x => x.Id);
+        invitation.Property(x => x.Email).HasMaxLength(320).IsRequired();
+        invitation.Property(x => x.Role).HasMaxLength(50).IsRequired();
+        invitation.Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
+        invitation.HasIndex(x => x.TokenHash).IsUnique();
+        invitation.HasIndex(x => new { x.TenantId, x.Email });
+        invitation.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+
+        var device = modelBuilder.Entity<SerialisedDevice>();
+        if (Database.IsNpgsql())
+            device.ToTable("serialised_devices", t => t.HasCheckConstraint("ck_device_imei_15_digits", "\"Imei\" ~ '^[0-9]{15}$'"));
+        else
+            device.ToTable("serialised_devices");
+        device.HasKey(x => x.Id);
+        device.Property(x => x.Imei).HasMaxLength(15).IsRequired();
+        device.Property(x => x.Status).HasMaxLength(24).IsRequired();
+        device.HasIndex(x => new { x.TenantId, x.Imei }).IsUnique();
+        device.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        device.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+
+        var movement = modelBuilder.Entity<InventoryMovement>();
+        movement.ToTable("inventory_movements");
+        movement.HasKey(x => x.Id);
+        movement.Property(x => x.MovementType).HasMaxLength(30).IsRequired();
+        movement.Property(x => x.Reference).HasMaxLength(100).IsRequired();
+        movement.HasIndex(x => new { x.DeviceId, x.OccurredAt });
+        movement.HasIndex(x => x.TenantId);
+        movement.HasOne(x => x.Device).WithMany(x => x.Movements).HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        var order = modelBuilder.Entity<RetailOrder>();
+        order.ToTable("retail_orders", t => t.HasCheckConstraint("ck_orders_nonnegative_price", "\"UnitPrice\" >= 0"));
+        order.HasKey(x => x.Id);
+        order.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        order.Property(x => x.UnitPrice).HasPrecision(14, 2);
+        order.HasIndex(x => new { x.TenantId, x.Status });
+        order.HasIndex(x => new { x.TenantId, x.CustomerUserId, x.CreatedAt });
+        order.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        var payment = modelBuilder.Entity<PaymentEvent>();
+        payment.ToTable("payment_events");
+        payment.HasKey(x => x.Id);
+        payment.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        payment.Property(x => x.ProviderEventId).HasMaxLength(160).IsRequired();
+        payment.Property(x => x.Outcome).HasMaxLength(30).IsRequired();
+        payment.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+        payment.Property(x => x.Amount).HasPrecision(14, 2);
+        payment.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
+        payment.HasIndex(x => new { x.TenantId, x.OrderId });
+        payment.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        payment.HasOne(x => x.PaymentIntent).WithMany().HasForeignKey(x => x.PaymentIntentId).OnDelete(DeleteBehavior.Restrict);
+        var intent = modelBuilder.Entity<PaymentIntent>();
+        intent.ToTable("payment_intents");
+        intent.HasKey(x => x.Id);
+        intent.Property(x => x.IdempotencyKey).HasMaxLength(100).IsRequired();
+        intent.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        intent.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        intent.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+        intent.Property(x => x.Amount).HasPrecision(14, 2);
+        intent.HasIndex(x => new { x.TenantId, x.OrderId, x.IdempotencyKey }).IsUnique();
+        intent.HasIndex(x => x.OrderId, "IX_payment_intents_OnePayfastSandboxPerOrder")
+            .IsUnique().HasFilter("\"Provider\" = 'PayfastSandbox'");
+        intent.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        var receipt = modelBuilder.Entity<GatewayWebhookReceipt>();
+        receipt.ToTable("gateway_webhook_receipts");
+        receipt.HasKey(x => x.Id);
+        receipt.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        receipt.Property(x => x.BodySha256).HasMaxLength(64).IsRequired();
+        receipt.Property(x => x.Status).HasMaxLength(24).IsRequired();
+        receipt.HasIndex(x => new { x.Provider, x.BodySha256 }).IsUnique();
+        receipt.HasIndex(x => new { x.Status, x.LastClaimedAt });
+    }
+}
