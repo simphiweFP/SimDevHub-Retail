@@ -80,11 +80,15 @@ public sealed class WebhookReceiptProcessor(
                  result.PaymentResult == PaymentConfirmationResult.OrderNotFound);
             var next = processed ? "Completed" :
                 rejected || attempt >= MaxAttempts ? "Rejected" : "RetryPending";
-            await db.GatewayWebhookReceipts.Where(x => x.Id == record.Id &&
+            var finalized = await db.GatewayWebhookReceipts.Where(x => x.Id == record.Id &&
                     x.Status == "Processing" && x.AttemptCount == attempt)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(x => x.Status, next)
                     .SetProperty(x => x.CompletedAt, processed ? (DateTimeOffset?)now : null), ct);
+            // A stale worker must not claim that its outcome was recorded
+            // after another worker replaced its lease.
+            if (finalized != 1)
+                return new(record.Id, WebhookReceiptStatus.Busy);
             return new(record.Id,
                 processed ? WebhookReceiptStatus.Processed :
                 next == "Rejected" ? WebhookReceiptStatus.Rejected : WebhookReceiptStatus.RetryPending,
