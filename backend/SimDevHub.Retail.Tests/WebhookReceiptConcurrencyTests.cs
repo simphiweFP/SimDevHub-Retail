@@ -114,10 +114,10 @@ public sealed class WebhookReceiptConcurrencyTests
         {
             // Model the five-minute lease having elapsed while the first
             // provider verifier is still blocked.
+            var fingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(notification.Body.Span));
             await db.GatewayWebhookReceipts.Where(x => x.Provider == "TestGateway" &&
-                    x.Status == "Processing")
-                .Where(x => x.BodySha256 ==
-                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(notification.Body.Span)))
+                    x.Status == "Processing" && x.BodySha256 == fingerprint)
                 .ExecuteUpdateAsync(x => x.SetProperty(
                     r => r.LastClaimedAt, DateTimeOffset.UtcNow.AddMinutes(-10)));
         }
