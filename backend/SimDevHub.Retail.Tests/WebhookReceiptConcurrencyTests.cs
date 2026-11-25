@@ -88,6 +88,55 @@ public sealed class WebhookReceiptConcurrencyTests
         Assert.Equal("Completed", state.Status);
     }
 
+    [Fact]
+    public async Task StaleWorkerCannotOverwriteNewerClaimOrReportSuccess()
+    {
+        var connection = Environment.GetEnvironmentVariable("RETAIL_TEST_DB_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<RetailDbContext>().UseNpgsql(connection).Options;
+        await using (var setup = new RetailDbContext(options))
+            await setup.Database.MigrateAsync();
+
+        var notification = new GatewayNotification("TestGateway",
+            Encoding.UTF8.GetBytes("stale-worker-" + Guid.NewGuid()),
+            new Dictionary<string, string>());
+        var slowGateway = new BlockingCoordinator();
+        async Task<WebhookReceiptResult> WithGateway(IGatewayNotificationCoordinator gateway)
+        {
+            await using var db = new RetailDbContext(options);
+            return await new WebhookReceiptProcessor(db, gateway, TimeProvider.System)
+                .ReceiveAsync(notification, CancellationToken.None);
+        }
+
+        var oldWorker = WithGateway(slowGateway);
+        await slowGateway.Entered.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await using (var db = new RetailDbContext(options))
+        {
+            // Model the five-minute lease having elapsed while the first
+            // provider verifier is still blocked.
+            await db.GatewayWebhookReceipts.Where(x => x.Provider == "TestGateway" &&
+                    x.Status == "Processing")
+                .Where(x => x.BodySha256 ==
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(notification.Body.Span)))
+                .ExecuteUpdateAsync(x => x.SetProperty(
+                    r => r.LastClaimedAt, DateTimeOffset.UtcNow.AddMinutes(-10)));
+        }
+
+        var newWorker = await WithGateway(new ImmediateCoordinator())
+            .WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(WebhookReceiptStatus.Processed, newWorker.Status);
+        slowGateway.Release.TrySetResult();
+        var staleResult = await oldWorker.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(WebhookReceiptStatus.Busy, staleResult.Status);
+        Assert.Equal(newWorker.ReceiptId, staleResult.ReceiptId);
+
+        await using var verify = new RetailDbContext(options);
+        var receipt = await verify.GatewayWebhookReceipts.AsNoTracking()
+            .SingleAsync(x => x.Id == newWorker.ReceiptId);
+        Assert.Equal("Completed", receipt.Status);
+        Assert.Equal(2, receipt.AttemptCount);
+    }
+
     private sealed class BlockingCoordinator : IGatewayNotificationCoordinator
     {
         private int _calls;
