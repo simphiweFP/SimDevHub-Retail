@@ -22,6 +22,7 @@ builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
 builder.Services.AddScoped<IInventoryReceiving, InventoryReceivingService>();
 builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
 builder.Services.AddScoped<ICustomerReservationService, CustomerReservationService>();
+builder.Services.AddScoped<ICustomerProductReservationService, CustomerProductReservationService>();
 builder.Services.AddScoped<IReservationExpiry, ReservationExpiryService>();
 builder.Services.AddScoped<IVerifiedPaymentProcessor, VerifiedPaymentProcessor>();
 builder.Services.AddScoped<IGatewayNotificationCoordinator, GatewayNotificationCoordinator>();
@@ -296,6 +297,32 @@ if (identityReady)
             .DisableAntiforgery();
     }
 
+    // Product-only reservation never accepts a client-provided physical device ID.
+    if (app.Configuration.GetValue<bool>("Retail:EnableCustomerReservations"))
+    {
+        app.MapPost("/api/storefront/{storeSlug}/reserve-product", async (
+            string storeSlug, CustomerProductReservationBody body,
+            ClaimsPrincipal principal, ICustomerProductReservationService reservations,
+            CancellationToken ct) =>
+        {
+            var issuer = principal.FindFirst("iss")?.Value;
+            var subject = principal.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject))
+                return Results.Forbid();
+
+            var result = await reservations.ReserveOneAsync(
+                new CustomerProductReserveRequest(issuer, subject, storeSlug, body.ProductId), ct);
+            return result.Status switch
+            {
+                ReserveOrderStatus.Reserved => Results.Ok(result),
+                ReserveOrderStatus.InvalidRequest => Results.BadRequest(new { error = "Invalid product." }),
+                ReserveOrderStatus.OutOfStock => Results.Conflict(new { error = "Device unavailable." }),
+                _ => Results.NotFound()
+            };
+        }).RequireAuthorization().RequireRateLimiting("customer-reserve")
+          .DisableAntiforgery();
+    }
+
     // Disabled until the automated 15-minute reservation expiry worker and
     // customer login/onboarding are configured for this deployment.
     if (app.Configuration.GetValue<bool>("Retail:EnableCustomerReservations"))
@@ -398,3 +425,5 @@ public sealed record AcceptInvitationRequest(string? Token);
 public sealed record CustomerReservationBody(Guid ProductId, Guid DeviceId);
 public sealed record CustomerSandboxPaymentBody(string? IdempotencyKey);
 public partial class Program;
+
+public sealed record CustomerProductReservationBody(Guid ProductId);

@@ -11,3 +11,10 @@ public interface ICustomerReservationService
 {
     Task<ReserveOrderResult> ReserveAsync(CustomerReserveRequest request, CancellationToken ct);
 }
+
+/// <summary>Customer requests one published product; the server picks the physical device.</summary>
+public sealed record CustomerProductReserveRequest(string Issuer, string Subject, string StoreSlug, Guid ProductId);
+public interface ICustomerProductReservationService
+{
+    Task<ReserveOrderResult> ReserveOneAsync(CustomerProductReserveRequest request, CancellationToken ct);
+}
