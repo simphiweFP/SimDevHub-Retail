@@ -1,6 +1,6 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CartService } from '../../core/services/cart.service';
 
 type DeliveryMethod = 'courier' | 'paxi' | 'fleet' | 'collection';
@@ -12,8 +12,23 @@ type PaymentMethod = 'card' | 'eft' | 'bnpl';
   templateUrl: './checkout.component.html',
   styleUrl: './checkout.component.scss'
 })
-export class CheckoutComponent {
+export class CheckoutComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
   readonly cart = inject(CartService);
+  readonly storeSlug = signal('nova-mobile');
+  readonly homeLink = computed(() => '/s/' + this.storeSlug());
+  ngOnInit(): void {
+    this.route.paramMap.subscribe(params => {
+      const slug = params.get('storeSlug') ?? 'nova-mobile';
+      if (!/^[a-z0-9-]{2,80}$/.test(slug)) {
+        this.notice.set('Invalid storefront. No order can be placed.');
+        this.cart.clear();
+        return;
+      }
+      this.storeSlug.set(slug);
+      this.cart.selectStore(slug);
+    });
+  }
   readonly delivery = signal<DeliveryMethod>('courier');
   readonly payment = signal<PaymentMethod>('card');
   readonly notice = signal('');

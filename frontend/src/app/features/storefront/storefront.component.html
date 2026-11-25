@@ -1,9 +1,9 @@
 <div class="store-shell">
   <header class="store-header">
-    <a class="brand" routerLink="/"><span class="brand-icon">N</span> {{catalogue.storeName()}}</a>
+    <a class="brand" [routerLink]="homeLink()"><span class="brand-icon">N</span> {{catalogue.storeName()}}</a>
     <nav aria-label="Store navigation"><a href="#products">Shop</a><a href="#products">Deals</a><a href="#products">Accessories</a><a routerLink="/admin">Business portal</a></nav>
-    <a routerLink="/login" class="sign-in">Sign in</a>
-    <a class="cart" routerLink="/checkout" [attr.aria-label]="'Cart with ' + cart.count() + ' items'">🛍 {{cart.count()}}</a>
+    <a [routerLink]="accountLink()" class="sign-in">Sign in</a>
+    <a class="cart" [routerLink]="checkoutLink()" [attr.aria-label]="'Cart with ' + cart.count() + ' items'">🛍 {{cart.count()}}</a>
   </header>
   <main>
     @if(catalogue.source()==='error'){<div role="alert" class="demo-notice">Products are currently unavailable. Please try again later. No orders are being accepted.</div>}
@@ -21,5 +21,5 @@
     </section>
     <section class="cart-summary"><span>Cart: {{cart.count()}} items</span><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong><a routerLink="/checkout" class="primary">Review cart →</a><span class="demo">Prototype only — checkout does not take payments.</span></section>
   </main>
-  <footer>Nova Mobile is a fictional demo storefront · Built by Sim DevHub</footer>
+  <footer>{{catalogue.storeName()}} · Powered by Sim DevHub Retail</footer>
 </div>

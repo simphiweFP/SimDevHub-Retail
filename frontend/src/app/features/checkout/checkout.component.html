@@ -1,9 +1,9 @@
 <div class="checkout-shell">
-  <header><a routerLink="/" class="brand"><span>◆</span> Nova Mobile</a><span class="secure">♢ Secure checkout preview</span></header>
+  <header><a [routerLink]="homeLink()" class="brand"><span>◆</span> Sim DevHub Retail</a><span class="secure">♢ Secure checkout preview</span></header>
   <main>
-    <div class="heading"><a routerLink="/">← Continue shopping</a><h1>Your checkout</h1><p>Review your basket, delivery and payment options.</p></div>
+    <div class="heading"><a [routerLink]="homeLink()">← Continue shopping</a><h1>Your checkout</h1><p>Review your basket, delivery and payment options.</p></div>
     @if(cart.count()===0) {
-      <section class="panel empty"><h2>Your cart is empty</h2><p>Explore our products to add your first device.</p><a routerLink="/" class="action">Browse products</a></section>
+      <section class="panel empty"><h2>Your cart is empty</h2><p>Explore our products to add your first device.</p><a [routerLink]="homeLink()" class="action">Browse products</a></section>
     } @else {
       <div class="columns">
         <section class="left">

@@ -1,6 +1,6 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CustomerAuthService, CustomerOrder } from '../../core/services/customer-auth.service';
 
 @Component({
@@ -9,7 +9,7 @@ import { CustomerAuthService, CustomerOrder } from '../../core/services/customer
   imports: [RouterLink, CurrencyPipe, DatePipe],
   template: `
     <main class="account">
-      <a routerLink="/">← Back to store</a>
+      <a [routerLink]="homeLink()">← Back to store</a>
       <h1>My account</h1>
       @if (loading()) { <p role="status">Loading account…</p> }
       @else if (!auth.isConfigured()) {
@@ -50,12 +50,22 @@ import { CustomerAuthService, CustomerOrder } from '../../core/services/customer
 export class AccountComponent implements OnInit {
   readonly auth = inject(CustomerAuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  readonly storeSlug = signal('nova-mobile');
+  readonly homeLink = computed(() => '/s/' + this.storeSlug());
   readonly loading = signal(true);
   readonly orders = signal<CustomerOrder[]>([]);
   readonly error = signal('');
   readonly paying = signal<string | null>(null);
 
   async ngOnInit(): Promise<void> {
+    const slug = this.route.snapshot.paramMap.get('storeSlug') ?? 'nova-mobile';
+    if (!/^[a-z0-9-]{2,80}$/.test(slug)) {
+      this.error.set('Invalid storefront.');
+      this.loading.set(false);
+      return;
+    }
+    this.storeSlug.set(slug);
     try { await this.auth.initialize(); }
     catch { this.error.set('Account configuration is unavailable.'); }
     if (this.auth.isAuthenticated()) await this.load();
@@ -73,7 +83,7 @@ export class AccountComponent implements OnInit {
         if (this.auth.isUnauthorized(error))
           throw error;
       }
-      this.orders.set(await this.auth.getOrders('nova-mobile'));
+      this.orders.set(await this.auth.getOrders(this.storeSlug()));
     } catch {
       this.orders.set([]);
       this.error.set('Could not load your orders. Please sign in again or try later.');
@@ -87,7 +97,7 @@ export class AccountComponent implements OnInit {
     this.error.set('');
     this.paying.set(order.orderId);
     try {
-      await this.auth.beginSandboxPayment('nova-mobile', order.orderId);
+      await this.auth.beginSandboxPayment(this.storeSlug(), order.orderId);
     } catch {
       this.error.set('Sandbox checkout is unavailable. No payment has been confirmed.');
     } finally {

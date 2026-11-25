@@ -28,6 +28,13 @@ export class CatalogueService {
 
   // The demo tenant is explicit until storefront host-based tenant resolution is implemented.
   async load(storeSlug = 'nova-mobile'): Promise<void> {
+    if (!/^[a-z0-9-]{2,80}$/.test(storeSlug)) {
+      this.productsState.set([]);
+      this.source.set('error');
+      return;
+    }
+    this.productsState.set([]);
+    this.storeName.set(storeSlug);
     this.source.set('loading');
     try {
       const data = await firstValueFrom(

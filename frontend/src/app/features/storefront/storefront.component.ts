@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CurrencyPipe } from '@angular/common';
 import { CatalogueService } from '../../core/services/catalogue.service';
 import { CartService } from '../../core/services/cart.service';
@@ -13,7 +13,12 @@ import { Product } from '../../core/models/product';
   styleUrl: './storefront.component.scss'
 })
 export class StorefrontComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
   readonly catalogue = inject(CatalogueService);
+  readonly storeSlug = signal('nova-mobile');
+  readonly homeLink = computed(() => '/s/' + this.storeSlug());
+  readonly checkoutLink = computed(() => this.homeLink() + '/checkout');
+  readonly accountLink = computed(() => this.homeLink() + '/account');
   readonly cart = inject(CartService);
   readonly query = signal('');
   readonly category = signal('All');
@@ -25,7 +30,18 @@ export class StorefrontComponent implements OnInit {
     return matchesCategory && product.name.toLowerCase().includes(this.query().trim().toLowerCase());
   }));
 
-  ngOnInit(): void { void this.catalogue.load(); }
+  ngOnInit(): void {
+    this.route.paramMap.subscribe(params => {
+      const slug = params.get('storeSlug') ?? 'nova-mobile';
+      if (!/^[a-z0-9-]{2,80}$/.test(slug)) {
+        this.catalogue.source.set('error');
+        return;
+      }
+      this.storeSlug.set(slug);
+      this.cart.selectStore(slug);
+      void this.catalogue.load(slug);
+    });
+  }
   add(product: Product): void { this.cart.add(product); }
   enquire(product: Product): void {
     const message = encodeURIComponent('Hi, is ' + product.name + ' (' + product.storage + ') available for R' + product.price.toLocaleString('en-ZA') + '?');

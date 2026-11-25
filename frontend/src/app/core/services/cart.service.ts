@@ -6,6 +6,18 @@ export interface CartLine { product: Product; quantity: number; }
 @Injectable({ providedIn: 'root' })
 export class CartService {
   private readonly linesState = signal<CartLine[]>([]);
+  private activeStoreSlug: string | null = null;
+  /**
+   * A cart belongs to exactly one storefront. Navigating to another shop must
+   * never carry products or prices across tenants.
+   */
+  selectStore(storeSlug: string): void {
+    if (!/^[a-z0-9-]{2,80}$/.test(storeSlug)) throw new Error('Invalid storefront');
+    if (this.activeStoreSlug !== storeSlug) {
+      this.linesState.set([]);
+      this.activeStoreSlug = storeSlug;
+    }
+  }
   readonly lines = this.linesState.asReadonly();
   readonly count = computed(() => this.lines().reduce((total, line) => total + line.quantity, 0));
   readonly subtotal = computed(() => this.lines().reduce((total, line) => total + line.product.price * line.quantity, 0));
