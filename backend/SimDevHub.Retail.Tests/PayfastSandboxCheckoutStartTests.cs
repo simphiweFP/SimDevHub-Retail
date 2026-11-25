@@ -61,7 +61,7 @@ public sealed class PayfastSandboxCheckoutStartTests
         Assert.Equal(first.FormFields["signature"], replay.FormFields!["signature"]);
         Assert.Equal(PayfastCheckoutStartStatus.Conflict,
             (await service.StartAsync(request with { IdempotencyKey = "another-key-001" }, CancellationToken.None)).Status);
-        Assert.Equal(PayfastCheckoutStartStatus.OrderUnavailable,
+        Assert.Equal(PayfastCheckoutStartStatus.Unavailable,
             (await service.StartAsync(request with { TenantId = Guid.NewGuid() }, CancellationToken.None)).Status);
         Assert.Single(await db.PaymentIntents.Where(x => x.OrderId == reservation.OrderId &&
             x.Provider == "PayfastSandbox").ToListAsync());
