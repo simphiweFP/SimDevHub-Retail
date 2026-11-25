@@ -9,6 +9,7 @@ interface PublicOidcConfiguration {
   clientId: string;
   scope: string;
   enableSandboxCheckout?: boolean;
+  enableReservations?: boolean;
 }
 export interface CustomerOrder {
   orderId: string;
@@ -19,6 +20,7 @@ export interface CustomerOrder {
   reservedUntil: string;
 }
 export interface OnboardedCustomer { id: string; created: boolean; }
+export interface ProductReservation { status: string; orderId: string; total: number; expiresAt: string; }
 
 /**
  * Opt-in OIDC authorization-code + PKCE browser login. No passwords or
@@ -31,9 +33,11 @@ export class CustomerAuthService {
   private readonly configured = signal(false);
   private readonly authenticated = signal(false);
   private readonly sandboxCheckout = signal(false);
+  private readonly reservations = signal(false);
   readonly isConfigured = this.configured.asReadonly();
   readonly isAuthenticated = this.authenticated.asReadonly();
   readonly isSandboxCheckoutEnabled = this.sandboxCheckout.asReadonly();
+  readonly isReservationsEnabled = this.reservations.asReadonly();
 
   private manager: UserManager | null = null;
   private initialized: Promise<void> | null = null;
@@ -79,6 +83,7 @@ export class CustomerAuthService {
     });
     this.configured.set(true);
     this.sandboxCheckout.set(config.enableSandboxCheckout === true);
+    this.reservations.set(config.enableReservations === true);
     const user = await this.manager.getUser();
     this.authenticated.set(!!user && !user.expired);
   }
@@ -130,6 +135,17 @@ export class CustomerAuthService {
       { headers: { Authorization: 'Bearer ' + token } }).pipe(timeout(10000)));
   }
 
+
+  async reserveOne(storeSlug: string, productId: string): Promise<ProductReservation> {
+    if (!this.reservations() || !/^[a-z0-9-]{2,80}$/.test(storeSlug) ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId))
+      throw new Error('Product reservation unavailable');
+    const accessToken = await this.token();
+    return await firstValueFrom(this.http.post<ProductReservation>(
+      '/api/storefront/' + encodeURIComponent(storeSlug) + '/reserve-product',
+      { productId }, { headers: { Authorization: 'Bearer ' + accessToken } }
+    ).pipe(timeout(15000)));
+  }
 
   async beginSandboxPayment(storeSlug: string, orderId: string): Promise<void> {
     if (!this.sandboxCheckout() ||

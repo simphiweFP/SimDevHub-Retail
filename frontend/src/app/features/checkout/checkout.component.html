@@ -3,7 +3,7 @@
   <main>
     <div class="heading"><a [routerLink]="homeLink()">← Continue shopping</a><h1>Your checkout</h1><p>Review your basket, delivery and payment options.</p></div>
     @if(cart.count()===0) {
-      <section class="panel empty"><h2>Your cart is empty</h2><p>Explore our products to add your first device.</p><a [routerLink]="homeLink()" class="action">Browse products</a></section>
+      <section class="panel empty"><h2>{{reservedOrder() ? 'Reservation created' : 'Your cart is empty'}}</h2><p>{{reservedOrder() ? 'One device is held temporarily. No payment has been taken.' : 'Explore our products to add your first device.'}}</p>@if(reservedOrder()){<a [routerLink]="accountLink()" class="action">View my orders</a>}@else{<a [routerLink]="homeLink()" class="action">Browse products</a>}</section>
     } @else {
       <div class="columns">
         <section class="left">
@@ -23,7 +23,16 @@
             }
           </div>
         </section>
-        <aside class="panel summary"><h2>Order summary</h2><div class="sumrow"><span>Items ({{cart.count()}})</span><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong></div><div class="sumrow"><span>Delivery</span><span>Calculated when connected</span></div><hr><div class="sumrow total"><strong>Subtotal</strong><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong></div><p>Delivery and final payable total will be calculated securely by the backend.</p><button type="button" class="action" (click)="previewOrder()">Preview order (demo)</button>@if(notice()){<p class="notice" role="status">{{notice()}}</p>}<p class="security">No live payments or bookings take place in this prototype.</p></aside>
+        <aside class="panel summary"><h2>Order summary</h2><div class="sumrow"><span>Items ({{cart.count()}})</span><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong></div><div class="sumrow"><span>Delivery</span><span>Calculated when connected</span></div><hr><div class="sumrow total"><strong>Subtotal</strong><strong>{{cart.subtotal() | currency:'ZAR':'symbol-narrow':'1.0-0'}}</strong></div><p>Delivery and final payable total will be calculated securely by the backend.</p><button type="button" class="action" (click)="previewOrder()">Preview order (demo)</button>
+          @if(auth.isReservationsEnabled()){
+            @if(!auth.isAuthenticated()){
+              <p>Sign in to reserve one available device.</p><a [routerLink]="accountLink()">Sign in / My account</a>
+            } @else if(canReserve()){
+              <button type="button" class="action" [disabled]="reserving()" (click)="reserveSelectedDevice()">{{reserving() ? 'Reserving…' : 'Reserve one device (15 min)'}}</button>
+            } @else {
+              <p>Reservations currently support one serialised device per order. Adjust the basket to one device.</p>
+            }
+          }@if(notice()){<p class="notice" role="status">{{notice()}}</p>}<p class="security">No live payments or bookings take place in this prototype.</p></aside>
       </div>
     }
   </main>
