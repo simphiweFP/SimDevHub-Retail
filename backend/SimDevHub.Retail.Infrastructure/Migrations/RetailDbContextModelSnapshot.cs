@@ -132,6 +132,7 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.Property(x => x.CreatedAt);
             e.Property(x => x.ReservedUntil);
             e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasIndex(x => x.CustomerUserId);
             e.HasIndex(x => new { x.TenantId, x.CustomerUserId, x.CreatedAt });
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.ProductId);
