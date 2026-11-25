@@ -44,3 +44,20 @@ The storefront tenant slug is still a fixed **demo** slug. Production
 tenant routing/host-to-store binding must precede real multi-store rollout.
 
 No payment button is wired. All payments remain disabled.
+
+## Optional Payfast sandbox handoff
+
+The public Angular auth configuration may additionally set
+`"enableSandboxCheckout": true` (defaults false). This only shows a
+**Payfast sandbox** option on already-owned AwaitingPayment orders and
+never bypasses backend configuration. The backend must separately enable
+the trusted authenticated sandbox checkout endpoint described in
+`docs/CUSTOMER_SANDBOX_CHECKOUT.md`. The frontend validates the hosted
+POST destination equals the fixed Payfast sandbox endpoint and creates
+form fields with DOM APIs rather than injecting HTML.
+
+Idempotency keys are stored per order in browser sessionStorage to allow
+retries within the same tab. No merchant passphrase or access token is sent
+in the Payfast hosted form. Do not enable for real customers until the
+provider has been tested end-to-end and the sandbox return/cancel UX is
+implemented. The storefront tenant slug remains a hard-coded demo value.

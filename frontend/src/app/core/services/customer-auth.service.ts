@@ -8,6 +8,7 @@ interface PublicOidcConfiguration {
   authority: string;
   clientId: string;
   scope: string;
+  enableSandboxCheckout?: boolean;
 }
 export interface CustomerOrder {
   orderId: string;
@@ -29,8 +30,10 @@ export class CustomerAuthService {
   private readonly http = inject(HttpClient);
   private readonly configured = signal(false);
   private readonly authenticated = signal(false);
+  private readonly sandboxCheckout = signal(false);
   readonly isConfigured = this.configured.asReadonly();
   readonly isAuthenticated = this.authenticated.asReadonly();
+  readonly isSandboxCheckoutEnabled = this.sandboxCheckout.asReadonly();
 
   private manager: UserManager | null = null;
   private initialized: Promise<void> | null = null;
@@ -75,6 +78,7 @@ export class CustomerAuthService {
       loadUserInfo: false
     });
     this.configured.set(true);
+    this.sandboxCheckout.set(config.enableSandboxCheckout === true);
     const user = await this.manager.getUser();
     this.authenticated.set(!!user && !user.expired);
   }
@@ -124,6 +128,55 @@ export class CustomerAuthService {
     return await firstValueFrom(this.http.get<CustomerOrder[]>(
       '/api/storefront/' + encodeURIComponent(storeSlug) + '/my-orders',
       { headers: { Authorization: 'Bearer ' + token } }).pipe(timeout(10000)));
+  }
+
+
+  async beginSandboxPayment(storeSlug: string, orderId: string): Promise<void> {
+    if (!this.sandboxCheckout() ||
+        !/^[a-z0-9-]{2,80}$/.test(storeSlug) ||
+        !/^[0-9a-f-]{36}$/i.test(orderId))
+      throw new Error('Sandbox checkout unavailable');
+
+    const accessToken = await this.token();
+    const keyName = 'retail-sandbox-payment-' + orderId;
+    let key = window.sessionStorage.getItem(keyName);
+    if (!key) {
+      key = 'sandbox-' + window.crypto.randomUUID();
+      window.sessionStorage.setItem(keyName, key);
+    }
+
+    const checkout = await firstValueFrom(this.http.post<{
+      intentId: string;
+      action: string;
+      fields: Record<string, string>;
+    }>(
+      '/api/storefront/' + encodeURIComponent(storeSlug) + '/orders/' +
+        encodeURIComponent(orderId) + '/payfast-sandbox',
+      { idempotencyKey: key },
+      { headers: { Authorization: 'Bearer ' + accessToken } }
+    ).pipe(timeout(15000)));
+
+    // Only post to the fixed, known Payfast sandbox destination, never a
+    // callback URL or arbitrary target supplied through compromised API data.
+    if (checkout.action !== 'https://sandbox.payfast.co.za/eng/process' ||
+        !checkout.fields || Object.keys(checkout.fields).length < 4)
+      throw new Error('Invalid sandbox checkout destination');
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = checkout.action;
+    form.style.display = 'none';
+    for (const [name, value] of Object.entries(checkout.fields)) {
+      if (!/^[a-z][a-z0-9_]{0,79}$/.test(name) || typeof value !== 'string' ||
+          value.length > 4000) throw new Error('Invalid payment field');
+      const field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = name;
+      field.value = value;
+      form.appendChild(field);
+    }
+    document.body.appendChild(form);
+    form.submit();
   }
 
   // Never log or surface access tokens in error messages.

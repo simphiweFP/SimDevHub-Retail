@@ -22,11 +22,18 @@ import { CustomerAuthService, CustomerOrder } from '../../core/services/customer
         <button type="button" (click)="signOut()">Sign out on this device</button>
         @if (error()) { <p role="alert">{{ error() }}</p> }
         <h2>My orders</h2>
+        @if (auth.isSandboxCheckoutEnabled()) {
+          <p role="status">Testing mode: Payfast sandbox only. No live payments are available.</p>
+        }
         @for (order of orders(); track order.orderId) {
           <article>
             <strong>{{order.status}}</strong>
             <p>{{order.amount | currency:order.currency:'symbol-narrow'}} · {{order.createdAt | date:'mediumDate'}}</p>
             <small>Order {{order.orderId}}</small>
+            @if (auth.isSandboxCheckoutEnabled() && order.status === 'AwaitingPayment') {
+              <button type="button" [disabled]="paying() === order.orderId"
+                (click)="paySandbox(order)">Continue to Payfast sandbox</button>
+            }
           </article>
         } @empty { <p>No orders to display.</p> }
       }
@@ -46,6 +53,7 @@ export class AccountComponent implements OnInit {
   readonly loading = signal(true);
   readonly orders = signal<CustomerOrder[]>([]);
   readonly error = signal('');
+  readonly paying = signal<string | null>(null);
 
   async ngOnInit(): Promise<void> {
     try { await this.auth.initialize(); }
@@ -71,6 +79,19 @@ export class AccountComponent implements OnInit {
       this.error.set('Could not load your orders. Please sign in again or try later.');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async paySandbox(order: CustomerOrder): Promise<void> {
+    if (this.paying()) return;
+    this.error.set('');
+    this.paying.set(order.orderId);
+    try {
+      await this.auth.beginSandboxPayment('nova-mobile', order.orderId);
+    } catch {
+      this.error.set('Sandbox checkout is unavailable. No payment has been confirmed.');
+    } finally {
+      this.paying.set(null);
     }
   }
 
