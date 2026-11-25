@@ -29,8 +29,8 @@ public sealed class PayfastSandboxCheckoutStart(
 
         // Both switches and a narrow source allowlist are mandatory. The ITN
         // callback cannot receive confirmations without this configuration.
-        if (!config.GetValue<bool>("Payments:PayfastSandbox:EnableCheckout") ||
-            !config.GetValue<bool>("Payments:PayfastSandbox:EnableWebhook") ||
+        if (!string.Equals(config["Payments:PayfastSandbox:EnableCheckout"], "true", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(config["Payments:PayfastSandbox:EnableWebhook"], "true", StringComparison.OrdinalIgnoreCase) ||
             !source.IsConfigured)
             return new(PayfastCheckoutStartStatus.Unavailable);
 
