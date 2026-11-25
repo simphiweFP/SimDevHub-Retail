@@ -19,6 +19,7 @@ builder.Services.AddScoped<ICustomerOrderAccess, CustomerOrderAccess>();
 builder.Services.AddScoped<IStaffInvitations, StaffInvitationService>();
 builder.Services.AddScoped<IInventoryReceiving, InventoryReceivingService>();
 builder.Services.AddScoped<IOrderReservationService, OrderReservationService>();
+builder.Services.AddScoped<ICustomerReservationService, CustomerReservationService>();
 builder.Services.AddScoped<IReservationExpiry, ReservationExpiryService>();
 builder.Services.AddScoped<IVerifiedPaymentProcessor, VerifiedPaymentProcessor>();
 builder.Services.AddScoped<IGatewayNotificationCoordinator, GatewayNotificationCoordinator>();
@@ -45,6 +46,16 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("customer-reserve", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
@@ -189,6 +200,32 @@ app.MapGet("/api/storefront/{storeSlug}/products", async (
 
 if (identityReady)
 {
+    // Disabled until the automated 15-minute reservation expiry worker and
+    // customer login/onboarding are configured for this deployment.
+    if (app.Configuration.GetValue<bool>("Retail:EnableCustomerReservations"))
+    {
+        app.MapPost("/api/storefront/{storeSlug}/reserve", async (
+            string storeSlug, CustomerReservationBody body, ClaimsPrincipal principal,
+            ICustomerReservationService reservations, CancellationToken ct) =>
+        {
+            var issuer = principal.FindFirst("iss")?.Value;
+            var subject = principal.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject))
+                return Results.Forbid();
+
+            var outcome = await reservations.ReserveAsync(new CustomerReserveRequest(
+                issuer, subject, storeSlug, body.ProductId, body.DeviceId), ct);
+            return outcome.Status switch
+            {
+                ReserveOrderStatus.Reserved => Results.Ok(outcome),
+                ReserveOrderStatus.InvalidRequest => Results.BadRequest(new { error = "Invalid selection." }),
+                ReserveOrderStatus.OutOfStock => Results.Conflict(new { error = "Selection unavailable." }),
+                _ => Results.NotFound()
+            };
+        }).RequireAuthorization().RequireRateLimiting("customer-reserve")
+          .DisableAntiforgery(); // Bearer tokens only; cookie auth requires CSRF protection.
+    }
+
     app.MapGet("/api/storefront/{storeSlug}/my-orders", async (
         string storeSlug, ClaimsPrincipal principal, ICustomerOrderAccess access,
         CancellationToken ct) =>
@@ -262,4 +299,5 @@ if (identityReady)
 
 app.Run();
 public sealed record AcceptInvitationRequest(string? Token);
+public sealed record CustomerReservationBody(Guid ProductId, Guid DeviceId);
 public partial class Program;

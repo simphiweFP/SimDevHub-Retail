@@ -16,6 +16,12 @@ public sealed class OrderReservationService(RetailDbContext db, TimeProvider clo
         if (request.TenantId == Guid.Empty || request.ProductId == Guid.Empty || request.DeviceId == Guid.Empty)
             return new(ReserveOrderStatus.InvalidRequest);
 
+        if (request.CustomerUserId == Guid.Empty)
+            return new(ReserveOrderStatus.CustomerUnavailable);
+        if (request.CustomerUserId is Guid customerId &&
+            !await db.Users.AsNoTracking().AnyAsync(x => x.Id == customerId && x.IsActive, ct))
+            return new(ReserveOrderStatus.CustomerUnavailable);
+
         var product = await db.CatalogueItems.AsNoTracking()
             .Where(p => p.Id == request.ProductId && p.TenantId == request.TenantId &&
                         p.Tenant.IsActive && p.IsPublished && p.Price >= 0)
@@ -34,7 +40,8 @@ public sealed class OrderReservationService(RetailDbContext db, TimeProvider clo
         var order = new RetailOrder
         {
             Id = Guid.NewGuid(), TenantId = request.TenantId, ProductId = request.ProductId,
-            DeviceId = request.DeviceId, Status = "AwaitingPayment",
+            DeviceId = request.DeviceId, CustomerUserId = request.CustomerUserId,
+            Status = "AwaitingPayment",
             UnitPrice = product.Price, CreatedAt = now, ReservedUntil = now.AddMinutes(15)
         };
         db.RetailOrders.Add(order);
