@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace SimDevHub.Retail.Application;
 
 /// <summary>
@@ -5,7 +7,8 @@ namespace SimDevHub.Retail.Application;
 /// authenticate the callback and independently confirm the payment status.
 /// </summary>
 public sealed record GatewayNotification(
-    string Provider, ReadOnlyMemory<byte> Body, IReadOnlyDictionary<string, string> Headers);
+    string Provider, ReadOnlyMemory<byte> Body, IReadOnlyDictionary<string, string> Headers,
+    IPAddress? SourceAddress = null);
 
 public interface IPaymentGatewayVerifier
 {

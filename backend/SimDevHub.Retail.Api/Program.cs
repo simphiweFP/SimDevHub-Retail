@@ -23,6 +23,13 @@ builder.Services.AddScoped<IVerifiedPaymentProcessor, VerifiedPaymentProcessor>(
 builder.Services.AddScoped<IGatewayNotificationCoordinator, GatewayNotificationCoordinator>();
 builder.Services.AddScoped<IWebhookReceiptProcessor, WebhookReceiptProcessor>();
 builder.Services.AddScoped<IPayfastSandboxMerchant, ConfiguredPayfastSandboxMerchant>();
+builder.Services.AddSingleton<PayfastTrustedSourceValidator>();
+builder.Services.AddSingleton<IPayfastSourceValidator>(sp =>
+    sp.GetRequiredService<PayfastTrustedSourceValidator>());
+builder.Services.AddHttpClient<IPayfastServerConfirmation, PayfastSandboxServerConfirmation>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
 // No Payfast webhook verifier is registered: public payment confirmation remains disabled.
 builder.Services.AddScoped<IPaymentIntentService, PaymentIntentService>();
 builder.Services.AddScoped<IPaymentReconciliationReader, PaymentReconciliationReader>();
@@ -30,6 +37,16 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("payfast-sandbox-itn", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
     options.AddPolicy("invite-redemption", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -86,6 +103,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+if (!builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("Payments:PayfastSandbox:EnableWebhook"))
+{
+    builder.Services.AddScoped<IPaymentGatewayVerifier, PayfastSandboxItnVerifier>();
+}
+
 var app = builder.Build();
 if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Retail:SeedDemo"))
 {
@@ -99,6 +122,58 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHealthChecks("/health");
+
+// Strict opt-in and never registered in a Production environment.
+var sandboxSource = app.Services.GetRequiredService<PayfastTrustedSourceValidator>();
+if (!app.Environment.IsProduction() &&
+    app.Configuration.GetValue<bool>("Payments:PayfastSandbox:EnableWebhook") &&
+    sandboxSource.IsConfigured)
+{
+    // Register a real verifier only in the explicitly enabled sandbox environment.
+    // It will still fail closed unless the appropriate tenant merchant and payment
+    // intent are independently configured and verified.
+    // The sandbox verifier is DI-registered only in this guarded deployment mode.
+    app.MapPost("/api/payments/payfast/sandbox/itn", async (
+        HttpContext context, IWebhookReceiptProcessor receipts,
+        PayfastTrustedSourceValidator source, CancellationToken ct) =>
+    {
+        if (!context.Request.IsHttps)
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (!string.Equals(context.Request.ContentType?.Split(';')[0].Trim(),
+                "application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
+            return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        if (context.Request.ContentLength is > 32768 or <= 0)
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+
+        var address = context.Connection.RemoteIpAddress;
+        var notification = new GatewayNotification("PayfastSandbox",
+            ReadOnlyMemory<byte>.Empty, new Dictionary<string, string>(), address);
+        if (!await source.IsTrustedSourceAsync(notification, ct))
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        var bytes = new byte[32769];
+        var count = 0;
+        while (count < bytes.Length)
+        {
+            var read = await context.Request.Body.ReadAsync(
+                bytes.AsMemory(count, bytes.Length - count), ct);
+            if (read == 0) break;
+            count += read;
+        }
+        if (count == 0 || count > 32768)
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+
+        notification = notification with { Body = bytes.AsMemory(0, count) };
+        var result = await receipts.ReceiveAsync(notification, ct);
+        return result.Status switch
+        {
+            WebhookReceiptStatus.Processed or WebhookReceiptStatus.AlreadyProcessed =>
+                Results.Ok(),
+            WebhookReceiptStatus.Rejected => Results.BadRequest(),
+            _ => Results.StatusCode(StatusCodes.Status503ServiceUnavailable)
+        };
+    }).DisableAntiforgery().RequireRateLimiting("payfast-sandbox-itn");
+}
 
 app.MapGet("/api/storefront/{storeSlug}/products", async (
     string storeSlug, IStorefrontCatalogue catalogue, CancellationToken cancellationToken) =>
