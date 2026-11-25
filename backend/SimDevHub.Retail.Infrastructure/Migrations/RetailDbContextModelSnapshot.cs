@@ -175,5 +175,20 @@ public sealed class RetailDbContextModelSnapshot : ModelSnapshot
             e.HasIndex(x => x.OrderId);
             e.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
         });
+        modelBuilder.Entity<GatewayWebhookReceipt>(e =>
+        {
+            e.ToTable("gateway_webhook_receipts");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(60);
+            e.Property(x => x.BodySha256).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Status).IsRequired().HasMaxLength(24);
+            e.Property(x => x.AttemptCount);
+            e.Property(x => x.ReceivedAt);
+            e.Property(x => x.LastClaimedAt);
+            e.Property(x => x.CompletedAt);
+            e.HasIndex(x => new { x.Provider, x.BodySha256 }).IsUnique();
+            e.HasIndex(x => new { x.Status, x.LastClaimedAt });
+        });
     }
 }

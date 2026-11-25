@@ -16,6 +16,7 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
     public DbSet<RetailOrder> RetailOrders => Set<RetailOrder>();
     public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
     public DbSet<PaymentIntent> PaymentIntents => Set<PaymentIntent>();
+    public DbSet<GatewayWebhookReceipt> GatewayWebhookReceipts => Set<GatewayWebhookReceipt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -119,5 +120,13 @@ public sealed class RetailDbContext(DbContextOptions<RetailDbContext> options) :
         intent.Property(x => x.Amount).HasPrecision(14, 2);
         intent.HasIndex(x => new { x.TenantId, x.OrderId, x.IdempotencyKey }).IsUnique();
         intent.HasOne(x => x.Order).WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        var receipt = modelBuilder.Entity<GatewayWebhookReceipt>();
+        receipt.ToTable("gateway_webhook_receipts");
+        receipt.HasKey(x => x.Id);
+        receipt.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        receipt.Property(x => x.BodySha256).HasMaxLength(64).IsRequired();
+        receipt.Property(x => x.Status).HasMaxLength(24).IsRequired();
+        receipt.HasIndex(x => new { x.Provider, x.BodySha256 }).IsUnique();
+        receipt.HasIndex(x => new { x.Status, x.LastClaimedAt });
     }
 }
